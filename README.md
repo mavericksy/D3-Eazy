@@ -51,4 +51,9 @@ A simple bar chart can be created like this:
   //
   d3.select("#"+el)
     .call(TheBar);
+  // 
+  // Updating the data can be initiated as such:
+  function updateBar(data){
+    TheBar.Data(data);
+  }
 ```
