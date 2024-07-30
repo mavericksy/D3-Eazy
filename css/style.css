@@ -10,6 +10,12 @@
 .flex-col {
   flex-direction: column;
 }
+.grid {
+  display: grid;
+}
+.igrid {
+  display: inline-grid;
+}
 .w-full {
   min-width: 100%;
 }

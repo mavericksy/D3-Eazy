@@ -58,4 +58,8 @@ A simple bar chart can be created like this:
 
 Creating this chart:
 
-![Simple Bar Chart](docs/imgs/barChartSimpleOne.png)
+![Simple Bar Chart One](docs/imgs/barChartSimpleOne.png)
+
+One change to the chained functions (Orient("horizontal")) will produce this chart:
+
+![Simple Bar Chart Horizontal](docs/imgs/barChartSimpleTwo.png)
