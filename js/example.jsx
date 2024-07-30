@@ -1,16 +1,9 @@
-# D3-Eazy
+import * as d3 from 'd3';
+import { BarChartSimple } from '../charts.js'
+import { ready } from '../events.js'
 
-TODO actually make it useful as a library.
-
-Wrapper around D3 charts using the general update pattern.
-
-Many thanks to Rob Moore at Toptal for his [Updatable Charts](https://www.toptal.com/d3-js/towards-reusable-d3-js-charts) article.
-
-Using the library is pretty simple.
-
-A simple bar chart can be created like this:
-
-```javascript
+ready(function(){
+  //
   var el = "barChartSimpleOne";
   var dataset = [
     {key:'JS',value:32},
@@ -54,8 +47,4 @@ A simple bar chart can be created like this:
   //
   d3.select("#"+el)
     .call(TheBar);
-```
-
-Creating this chart:
-
-![Simple Bar Chart](docs/imgs/barChartSimpleOne.png)
+});

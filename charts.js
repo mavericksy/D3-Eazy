@@ -1,5 +1,5 @@
 import * as d3 from 'd3';
-import { DateTime } from "luxon";
+import { DateTime } from 'luxon';
 import { addEventListener } from './events.js';
 
 // TODO test and tweak responsive charts
@@ -70,7 +70,10 @@ function BarChartSimple(name) {
     fontDividend = 4,
     domainRound = false,
     barLengthPercentage = 50,
-    domainAsObj = false
+    domainAsObj = false,
+    debug = false,
+    baseline_offset = 1,
+    corner_radius_x = 3
     ;
 
   var updateData,
@@ -95,20 +98,25 @@ function BarChartSimple(name) {
     updateTextDeltaX,
     updateTextFormat,
     updateDomainRound,
-    updateBarLength
+    updateBarLength,
+    updateCornerRadiusX
   ;
 
   function chart(selection) {
     //
     selection.each(function() {
       //
-      var boundedWidth = dims.w - dims.mR - dims.mL, 
+      var boundedWidth = dims.w - dims.mR - dims.mL,
         boundedHeight = dims.h - dims.mT - dims.mB,
         barPadding = 0.1,
         barSpacing = boundedHeight / data.length,
         barHeight = barSpacing - barPadding,
         widthScale = boundedWidth / val_domain[1]
       ;
+      if(debug){
+        console.log(dims);
+        console.log(boundedHeight, boundedWidth);
+      }
       //
       var chartColour = colour
         .domain(colourDomain)
@@ -181,11 +189,12 @@ function BarChartSimple(name) {
         .join("rect")
           .attr("fill", (d) => chartColour(band(d)))
           .attr("x", (d) => orient == "vertical" 
-            ? val_linear(0) 
+            ? val_linear(baseline_offset) 
             : quant_band(band(d)))
           .attr("y", (d) => orient == "vertical" 
             ? quant_band(band(d)) 
             : val_linear(val(d)))
+          .attr("rx", corner_radius_x)
         .call(transitionDims)
       ;
       //
@@ -243,7 +252,7 @@ function BarChartSimple(name) {
       }
       //
       //
-      var bottomGen = 
+      var bottomGen =
         d3.axisBottom(orient === 'vertical' 
           ? val_linear 
           : quant_band)
@@ -386,6 +395,15 @@ function BarChartSimple(name) {
         }
 
       };
+      updateDebug = function(){
+
+      };
+      updateBaselineOffset = function(){
+
+      };
+      updateCornerRadiusX = function(){
+        
+      };
       updateOrient = function(){
 
       };
@@ -450,6 +468,25 @@ function BarChartSimple(name) {
 
       };
     });
+  }
+  //
+  chart.Debug = function(bool){
+    if(!arguments.length) return debug;
+    debug = bool;
+    if (typeof updateDebug === 'function') updateDebug();
+    return chart;
+  }
+  chart.BaselineOffset = function(val){
+    if(!arguments.length) return baseline_offset;
+    baseline_offset = val;
+    if(typeof updateBaselineOffset === 'function') updateBaselineOffset();
+    return chart;
+  }
+  chart.CornerRadiusX = function(val){
+    if(!arguments.length) return corner_radius_x;
+    corner_radius_x = val;
+    if(typeof updateCornerRadiusX === 'function') updateCornerRadiusX();
+    return chart;
   }
   //
   chart.SvgID = function(val){
@@ -599,7 +636,7 @@ function BarChartSimple(name) {
     if(!arguments.length) return height;
     height = val;
     dims.h = height;
-    if (typeof updateHeight === 'function') updateWidth();
+    if (typeof updateHeight === 'function') updateHeight();
     return chart;
   }
   //

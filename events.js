@@ -1,4 +1,11 @@
-export function addEventListener(el, eventName, eventHandler, selector) {
+function ready(fn) {
+  if (document.readyState !== 'loading') {
+    fn();
+  } else {
+    document.addEventListener('DOMContentLoaded', fn);
+  }
+}
+function addEventListener(el, eventName, eventHandler, selector) {
   if (selector) {
     const wrappedHandler = (e) => {
       if (!e.target) return;
@@ -21,4 +28,8 @@ export function addEventListener(el, eventName, eventHandler, selector) {
     el.addEventListener(eventName, wrappedHandler);
     return wrappedHandler;
   }
+}
+export {
+  addEventListener,
+  ready
 }
