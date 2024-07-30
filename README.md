@@ -43,12 +43,6 @@ A simple bar chart can be created like this:
   .MarginBottom(0)
   .MarginLeft(80)
   .MarginRight(0)
-  .WithText(true)
-  .FontDividend(2)
-  .TextDeltaX(3)
-  .TextDeltaY(4)
-  .TextFill(["black","black"])
-  .TextAnchor(["start", "end"])
   .CornerRadiusX(2)
   .Data(dataset);
   //
