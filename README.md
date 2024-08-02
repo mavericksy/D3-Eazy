@@ -1,6 +1,8 @@
 # D3-Eazy
 
-TODO actually make it useful as a library.
+_*THIS SOFTWARE IS ALPHA QUALITY*_
+
+_*EXPECT THE API TO CHANGE*_
 
 Wrapper around D3 charts using the general update pattern.
 
@@ -11,30 +13,34 @@ Using the library is pretty simple.
 A simple bar chart can be created like this:
 
 ```javascript
-  var el = "barChartSimpleOne";
-  var dataset = [
-    {key:'JS',value:32},
-    {key:'GO',value:301},
-    {key:'Rust',value:71},
-    {key:'C',value:182},
-    {key:'Zig',value:101},
-    {key:'Common Lisp',value:400},
-  ];
-  //
-  const rect = document.getElementById(el).getBoundingClientRect();
-  const width = rect.width;
-  const height = rect.height;
-  //
-  var max = d3.max(dataset, d => d.value);
-  var domain = d3.sort(dataset, d=> -d.value).map(d => d.key);
-  //
-  var TheBar = BarChartSimple()
+var el = "barChartSimpleOne";
+var dataset = [
+  { key: "JS", value: 32 },
+  { key: "GO", value: 301 },
+  { key: "Rust", value: 71 },
+  { key: "C", value: 182 },
+  { key: "Zig", value: 101 },
+  { key: "Common Lisp", value: 400 },
+];
+//
+const rect = document.getElementById(el).getBoundingClientRect();
+const width = rect.width;
+const height = rect.height;
+//
+var max = d3.max(dataset, (d) => d.value);
+var domain = d3.sort(dataset, (d) => -d.value).map((d) => d.key);
+//
+var TheBar = BarChartSimple()
   .SvgID("thebar")
-  .Val(function(a) {return a.value;})
-  .Band(function(a) {return a.key;})
+  .Val(function (a) {
+    return a.value;
+  })
+  .Band(function (a) {
+    return a.key;
+  })
   .Orient("vertical")
   .DomainBand(domain)
-  .DomainVal([0,max])
+  .DomainVal([0, max])
   .ColourDomain(domain)
   .ColourRange(d3.schemeObservable10)
   .Width(width)
@@ -45,9 +51,8 @@ A simple bar chart can be created like this:
   .MarginRight(0)
   .CornerRadiusX(2)
   .Data(dataset);
-  //
-  d3.select("#"+el)
-    .call(TheBar);
+//
+d3.select("#" + el).call(TheBar);
 ```
 
 Creating this chart:
@@ -57,3 +62,9 @@ Creating this chart:
 One change to the chained functions (Orient("horizontal")) will produce this chart:
 
 ![Simple Bar Chart Horizontal](docs/imgs/barChartSimpleTwo.png)
+
+## Charts
+
+Grouped Bar Chart:
+
+![Simple Grouped Bar Chart Horizontal](docs/imgs/groupedBarChartSimpleOne.png)

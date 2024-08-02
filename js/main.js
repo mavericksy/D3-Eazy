@@ -9456,9 +9456,17 @@
         }
         var chartColour = colour.domain(colourDomain).range(colourRange);
         var svg = getBaseSVG(this, svg_id, dims, responsivefy);
-        var quant_band = band().domain(domainAsObj ? band_domain.map((d) => band_accessor(d)) : band_domain).rangeRound(orient == "vertical" ? [0, boundedHeight] : [0, boundedWidth]).padding(barPadding);
+        var quant_band = band().domain(
+          domainAsObj ? band_domain.map((d) => band_accessor(d)) : band_domain
+        ).rangeRound(
+          orient == "vertical" ? [0, boundedHeight] : [0, boundedWidth]
+        ).padding(barPadding);
         var val_linear = linear3().domain(val_domain);
-        domainRound ? val_linear.rangeRound(orient === "vertical" ? [0, boundedWidth] : [boundedHeight, 0]) : val_linear.range(orient === "vertical" ? [0, boundedWidth] : [boundedHeight, 0]);
+        domainRound ? val_linear.rangeRound(
+          orient === "vertical" ? [0, boundedWidth] : [boundedHeight, 0]
+        ) : val_linear.range(
+          orient === "vertical" ? [0, boundedWidth] : [boundedHeight, 0]
+        );
         var bottomAxis = svg.append("g").attr("transform", `translate(0,${boundedHeight})`);
         var leftAxis = svg.append("g").attr("transform", `translate(0,0)`);
         function transitionDims(svg2) {
@@ -9472,24 +9480,53 @@
             }).attr("width", quant_band.bandwidth()).attr("y", (d) => val_linear(val(d))).attr("x", (d) => quant_band(band2(d))).attr("height", (d) => boundedHeight - val_linear(val(d)));
           }
         }
-        svg.append("g").selectAll().data(data).join("rect").attr("fill", (d) => chartColour(band2(d))).attr("x", (d) => orient == "vertical" ? val_linear(baseline_offset) : quant_band(band2(d))).attr("y", (d) => orient == "vertical" ? quant_band(band2(d)) : val_linear(val(d))).attr("rx", corner_radius_x).call(transitionDims);
+        svg.append("g").selectAll().data(data).join("rect").attr("fill", (d) => chartColour(band2(d))).attr(
+          "x",
+          (d) => orient == "vertical" ? val_linear(baseline_offset) : quant_band(band2(d))
+        ).attr(
+          "y",
+          (d) => orient == "vertical" ? quant_band(band2(d)) : val_linear(val(d))
+        ).attr("rx", corner_radius_x).call(transitionDims);
         if (withText) {
-          svg.append("g").attr("fill", textFill[0]).attr("text-anchor", textAnchor[0]).selectAll().data(data).join("text").attr("class", "bar-text").attr("x", (d) => orient == "vertical" ? val_linear(0) : quant_band(band2(d)) + quant_band.bandwidth() / 2).attr("y", (d) => orient == "vertical" ? quant_band(band2(d)) + quant_band.bandwidth() / 2 : boundedHeight).attr("dy", textDeltaY).attr("dx", textDeltaX).attr("font-size", (d) => quant_band.bandwidth() / fontDividend).attr("opacity", 0).text((d) => textFormat(val(d))).call((text) => text.filter(function(d) {
-            var dimm = Math.abs(val_linear(val(d)) - val_linear(0));
-            var is = dimm > (orient === "vertical" ? boundedWidth : boundedHeight) * (barLengthPercentage / 100);
-            return is;
-          }).attr("dx", orient == "vertical" ? textDeltaX * -1 : textDeltaX).attr("dy", orient == "vertical" ? textDeltaY : textDeltaY * 2 * -1).attr("fill", textFill[1]).attr("text-anchor", textAnchor[1])).transition().duration(500).ease(linear2).attr("x", (d) => orient == "vertical" ? val_linear(val(d)) : quant_band(band2(d)) + quant_band.bandwidth() / 2).attr("y", (d) => orient == "vertical" ? quant_band(band2(d)) + quant_band.bandwidth() / 2 : val_linear(val(d))).attr("opacity", 1);
+          svg.append("g").attr("fill", textFill[0]).attr("text-anchor", textAnchor[0]).selectAll().data(data).join("text").attr("class", "bar-text").attr(
+            "x",
+            (d) => orient == "vertical" ? val_linear(0) : quant_band(band2(d)) + quant_band.bandwidth() / 2
+          ).attr(
+            "y",
+            (d) => orient == "vertical" ? quant_band(band2(d)) + quant_band.bandwidth() / 2 : boundedHeight
+          ).attr("dy", textDeltaY).attr("dx", textDeltaX).attr("font-size", (d) => quant_band.bandwidth() / fontDividend).attr("opacity", 0).text((d) => textFormat(val(d))).call(
+            (text) => text.filter(function(d) {
+              var dimm = Math.abs(val_linear(val(d)) - val_linear(0));
+              var is = dimm > (orient === "vertical" ? boundedWidth : boundedHeight) * (barLengthPercentage / 100);
+              return is;
+            }).attr("dx", orient == "vertical" ? textDeltaX * -1 : textDeltaX).attr(
+              "dy",
+              orient == "vertical" ? textDeltaY : textDeltaY * 2 * -1
+            ).attr("fill", textFill[1]).attr("text-anchor", textAnchor[1])
+          ).transition().duration(500).ease(linear2).attr(
+            "x",
+            (d) => orient == "vertical" ? val_linear(val(d)) : quant_band(band2(d)) + quant_band.bandwidth() / 2
+          ).attr(
+            "y",
+            (d) => orient == "vertical" ? quant_band(band2(d)) + quant_band.bandwidth() / 2 : val_linear(val(d))
+          ).attr("opacity", 1);
         }
         var bottomGen = axisBottom(orient === "vertical" ? val_linear : quant_band).ticks(4);
         var leftGen = axisLeft(orient === "vertical" ? quant_band : val_linear).ticks(5);
-        orient === "vertical" ? leftGen.tickFormat((d, i) => domainAsObj ? band_domain[i].val : band_domain[i]) : bottomGen.tickFormat((d, i) => domainAsObj ? band_domain[i].val : band_domain[i]);
+        orient === "vertical" ? leftGen.tickFormat(
+          (d, i) => domainAsObj ? band_domain[i].val : band_domain[i]
+        ) : bottomGen.tickFormat(
+          (d, i) => domainAsObj ? band_domain[i].val : band_domain[i]
+        );
         bottomAxis.call(bottomGen);
         leftAxis.call(leftGen);
         updateData = function() {
           quant_band.domain(data.map((d) => band2(d)));
           val_linear.domain([0, max(data, (d) => val(d))]);
           var bottomGen2 = axisBottom(orient === "vertical" ? val_linear : quant_band).ticks(4);
-          orient == "vertical" ? true : bottomGen2.tickFormat((d, i) => domainAsObj ? band_domain[i].val : band_domain[i]);
+          orient == "vertical" ? true : bottomGen2.tickFormat(
+            (d, i) => domainAsObj ? band_domain[i].val : band_domain[i]
+          );
           bottomAxis.transition().duration(800).call(bottomGen2);
           var leftGen2 = axisLeft(orient === "vertical" ? quant_band : val_linear).ticks(5);
           leftAxis.transition().duration(800).call(leftGen2);
@@ -9507,14 +9544,34 @@
           svg.selectAll("rect").data(data).join("rect").attr("fill", (d) => chartColour(band2(d))).call(updateDims);
           if (withText) {
             svg.selectAll("text.bar-text").remove();
-            svg.append("g").attr("fill", textFill[0]).attr("text-anchor", textAnchor[0]).selectAll().data(data).join("text").attr("class", "bar-text").attr("x", (d) => orient == "vertical" ? val_linear(val(d)) : quant_band(band2(d)) + quant_band.bandwidth() / 2).attr("y", (d) => orient == "vertical" ? quant_band(band2(d)) + quant_band.bandwidth() / 2 : boundedHeight).attr("dy", textDeltaY).attr("dx", textDeltaX).attr("font-size", (d) => quant_band.bandwidth() / fontDividend).attr("opacity", 0).text((d) => textFormat(val(d))).call((text) => (
-              // Is the bar larger than a % of range extent?
-              text.filter(function(d) {
-                var dimm = Math.abs(val_linear(val(d)) - val_linear(0));
-                var is = dimm > (orient === "vertical" ? boundedWidth : boundedHeight) * (barLengthPercentage / 100);
-                return is;
-              }).attr("dx", orient == "vertical" ? textDeltaX * -1 : textDeltaX).attr("dy", orient == "vertical" ? textDeltaY : textDeltaY * 2 * -1).attr("fill", textFill[1]).attr("text-anchor", textAnchor[1])
-            )).transition().duration(500).ease(linear2).attr("x", (d) => orient == "vertical" ? val_linear(val(d)) : quant_band(band2(d)) + quant_band.bandwidth() / 2).attr("y", (d) => orient == "vertical" ? quant_band(band2(d)) + quant_band.bandwidth() / 2 : val_linear(val(d))).attr("opacity", 1);
+            svg.append("g").attr("fill", textFill[0]).attr("text-anchor", textAnchor[0]).selectAll().data(data).join("text").attr("class", "bar-text").attr(
+              "x",
+              (d) => orient == "vertical" ? val_linear(val(d)) : quant_band(band2(d)) + quant_band.bandwidth() / 2
+            ).attr(
+              "y",
+              (d) => orient == "vertical" ? quant_band(band2(d)) + quant_band.bandwidth() / 2 : boundedHeight
+            ).attr("dy", textDeltaY).attr("dx", textDeltaX).attr("font-size", (d) => quant_band.bandwidth() / fontDividend).attr("opacity", 0).text((d) => textFormat(val(d))).call(
+              (text) => (
+                // Is the bar larger than a % of range extent?
+                text.filter(function(d) {
+                  var dimm = Math.abs(val_linear(val(d)) - val_linear(0));
+                  var is = dimm > (orient === "vertical" ? boundedWidth : boundedHeight) * (barLengthPercentage / 100);
+                  return is;
+                }).attr("dx", orient == "vertical" ? textDeltaX * -1 : textDeltaX).attr(
+                  "dy",
+                  orient == "vertical" ? textDeltaY : (
+                    // offset to account for height of font
+                    textDeltaY * 2 * -1
+                  )
+                ).attr("fill", textFill[1]).attr("text-anchor", textAnchor[1])
+              )
+            ).transition().duration(500).ease(linear2).attr(
+              "x",
+              (d) => orient == "vertical" ? val_linear(val(d)) : quant_band(band2(d)) + quant_band.bandwidth() / 2
+            ).attr(
+              "y",
+              (d) => orient == "vertical" ? quant_band(band2(d)) + quant_band.bandwidth() / 2 : val_linear(val(d))
+            ).attr("opacity", 1);
           }
         };
         updateDebug = function() {
@@ -9750,6 +9807,149 @@
     };
     return chart;
   }
+  function GroupedBarChartSimple() {
+    var data = [], svg_id = "", band_domain, subGroup_domain, group_accessor = (g) => g.name, val_domain, orient = "horizontal", colourDomain = ["A", "B"], colourRange = Tableau10_default, colour = ordinal(), width = 800, height = 600, marginLeft = 0, marginRight = 0, marginBottom = 0, marginTop = 0, dims = {
+      w: width,
+      h: height,
+      mR: marginRight,
+      mL: marginLeft,
+      mT: marginTop,
+      mB: marginBottom
+    }, withText = false;
+    var updateData, updateDomain, updateOrient2, updateColour, updateWidth2, updateHeight2, updateMarginLeft2, updateMarginRight2, updateMarginBottom2, updateMarginTop2, updateBarPadding, updateDomainVal2, updateDomainBand, updateDomainSubgroup, updateColourRange, updateColourDomain, updateText, updateTextFill, updateTextAnchor, updateTextDeltaY, updateTextDeltaX;
+    function chart(selection2) {
+      selection2.each(function() {
+        var boundedWidth = dims.w - dims.mR - dims.mL, boundedHeight = dims.h - dims.mT - dims.mB, barPadding = 0.1, barGroupPadding = 0.1, subGroup_padding = 0.1, barSpacing = boundedHeight / data.length, barHeight = barSpacing - barPadding;
+        var chartColour = colour.domain(colourDomain).range(colourRange);
+        var svg = getBaseSVG(this, svg_id, dims, responsivefy);
+        var groupBand = band().domain(band_domain).rangeRound([0, boundedWidth]).paddingInner(barGroupPadding);
+        var subGroupBand = band().domain(subGroup_domain).rangeRound([0, groupBand.bandwidth()]).padding(subGroup_padding);
+        var val_linear = linear3().domain(val_domain).nice().rangeRound([boundedHeight, 0]);
+        svg.append("g").selectAll("g").data(data).join("g").attr(
+          "transform",
+          (d) => `translate(${groupBand(group_accessor(d))}, 0)`
+        ).selectAll("rect").data(function(d) {
+          return subGroup_domain.map(function(key) {
+            return { key, value: d[key], name: group_accessor(d) };
+          });
+        }).join("rect").attr("x", (d) => subGroupBand(d.key) + subGroupBand.bandwidth() / 2).attr("y", (d) => boundedHeight).attr("width", 0).attr("fill", (d) => chartColour(d.name)).transition().duration(700).ease(linear2).attr("height", (d) => boundedHeight - val_linear(d.value)).attr("y", (d) => val_linear(d.value)).attr("width", subGroupBand.bandwidth()).attr("x", (d) => subGroupBand(d.key));
+        if (withText) {
+          svg.selectAll().data(data).join("g").attr(
+            "transform",
+            (n2) => `translate(${groupBand(group_accessor(n2))},0)`
+          ).selectAll().data(function(d) {
+            return subGroup_domain.map(function(key) {
+              return { key, value: d[key], name: d["name"] };
+            });
+          }).join("text").attr("x", (d) => subGroupBand(d.key)).attr("y", (d) => boundedHeight).attr("dy", "2em").attr("dx", (d) => subGroupBand.bandwidth() / 2).attr("fill", "lightgrey").attr("font-size", 0).attr("text-anchor", "middle").attr("opacity", 0).text((d) => d.value).transition().duration(700).ease(linear2).attr("y", (d) => val_linear(d.value) + subGroupBand.bandwidth() / 2).attr("dy", "-2.5em").attr("opacity", 1).attr("font-size", (d) => subGroupBand.bandwidth() / 4);
+        }
+        svg.append("g").attr("transform", `translate(0,${boundedHeight})`).call(axisBottom(groupBand).tickSizeOuter(0));
+        svg.append("g").attr("transform", `translate(0,0)`).call(axisLeft(val_linear));
+        updateData = function() {
+        };
+        updateColour = function() {
+        };
+        updateColourDomain = function() {
+        };
+        updateWidth2 = function() {
+        };
+        updateHeight2 = function() {
+        };
+        updateMarginTop2 = function() {
+        };
+        updateMarginRight2 = function() {
+        };
+        updateMarginBottom2 = function() {
+        };
+        updateMarginLeft2 = function() {
+        };
+      });
+    }
+    chart.SvgID = function(val) {
+      if (!arguments.length) return svg_id;
+      svg_id = val;
+      return chart;
+    };
+    chart.Data = function(val) {
+      if (!arguments.length) return data;
+      data = val;
+      if (typeof updateData === "function") updateData();
+      return chart;
+    };
+    chart.Band = function(val) {
+      if (!arguments.length) return band_domain;
+      band_domain = val;
+      if (typeof updateDomainBand === "function") updateDomainBand();
+      return chart;
+    };
+    chart.Subgroup = function(val) {
+      if (!arguments.length) return subGroup_domain;
+      subGroup_domain = val;
+      if (typeof updateDomainSubgroup === "function") updateDomainSubgroup();
+      return chart;
+    };
+    chart.DomainVal = function(val) {
+      if (!arguments.length) return val_domain;
+      val_domain = val;
+      if (typeof updateDomainVal2 === "function") updateDomainVal2();
+      return chart;
+    };
+    chart.Colour = function(val) {
+      if (!arguments.length) return colour;
+      colour = val;
+      if (typeof updateColour === "function") updateColour();
+      return chart;
+    };
+    chart.ColourDomain = function(val) {
+      if (!arguments.length) return colourDomain;
+      colourDomain = val;
+      if (typeof updateColourDomain === "function") updateColourDomain();
+      return chart;
+    };
+    chart.Width = function(val) {
+      if (!arguments.length) return width;
+      width = val;
+      dims.w = width;
+      if (typeof updateWidth2 === "function") updateWidth2();
+      return chart;
+    };
+    chart.Height = function(val) {
+      if (!arguments.length) return height;
+      height = val;
+      dims.h = height;
+      if (typeof updateHeight2 === "function") updateWidth2();
+      return chart;
+    };
+    chart.MarginLeft = function(val) {
+      if (!arguments.length) return marginLeft;
+      marginLeft = val;
+      dims.mL = marginLeft;
+      if (typeof updateMarginLeft2 === "function") updateMarginLeft2();
+      return chart;
+    };
+    chart.MarginRight = function(val) {
+      if (!arguments.length) return marginRight;
+      marginRight = val;
+      dims.mR = marginRight;
+      if (typeof updateMarginRight2 === "function") updateMarginRight2();
+      return chart;
+    };
+    chart.MarginTop = function(val) {
+      if (!arguments.length) return marginTop;
+      marginTop = val;
+      dims.mT = marginTop;
+      if (typeof updateMarginTop2 === "function") updateMarginTop2();
+      return chart;
+    };
+    chart.MarginBottom = function(val) {
+      if (!arguments.length) return marginBottom;
+      marginBottom = val;
+      dims.mB = marginBottom;
+      if (typeof updateMarginBottom2 === "function") updateMarginBottom2();
+      return chart;
+    };
+    return chart;
+  }
 
   // js/example.jsx
   ready(function() {
@@ -9783,5 +9983,22 @@
       return a.key;
     }).Orient("horizontal").DomainBand(domain).DomainVal([0, max3]).ColourDomain(domain).ColourRange(observable10_default).Width(widthtwo).Height(heighttwo).MarginTop(0).MarginBottom(0).MarginLeft(80).MarginRight(0).CornerRadiusX(2).Data(dataset);
     select_default2("#" + eltwo).call(TheBarTwo);
+    const elGroupedBar = "groupedBarChartSimple";
+    const groupedOne = document.getElementById(elGroupedBar).getBoundingClientRect();
+    const widthGrouped = groupedOne.width;
+    const heightGrouped = groupedOne.height;
+    console.log(widthGrouped, heightGrouped);
+    var datasetGrouped = [
+      { name: "JS", value: 32, nice: 16 },
+      { name: "GO", value: 301, nice: 202 },
+      { name: "C", value: 182, nice: 120 },
+      { name: "Rust", value: 71, nice: 10 },
+      { name: "Zig", value: 101, nice: 60 },
+      { name: "Common Lisp", value: 400, nice: 350 }
+    ];
+    const domainGrouped = sort(datasetGrouped, (d) => -d.value).map((d) => d.name);
+    const maxGrouped = max(datasetGrouped, (d) => d.value);
+    var TheGroupedBarOne = GroupedBarChartSimple().SvgID("groupedBarOne").Band(domainGrouped).Subgroup(["value", "nice"]).DomainVal([0, maxGrouped]).Width(widthGrouped).Height(heightGrouped).MarginTop(40).MarginBottom(0).MarginLeft(40).MarginRight(0).ColourDomain(domainGrouped).Data(datasetGrouped);
+    select_default2("#" + elGroupedBar).call(TheGroupedBarOne);
   });
 })();

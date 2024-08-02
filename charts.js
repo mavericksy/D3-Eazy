@@ -1,43 +1,45 @@
-import * as d3 from 'd3';
-import { DateTime } from 'luxon';
-import { addEventListener } from './events.js';
+import * as d3 from "d3";
+import { DateTime } from "luxon";
+import { addEventListener } from "./events.js";
 
 // TODO test and tweak responsive charts
 function responsivefy(svg) {
   var container = d3.select(svg.node().parentNode),
-      width = parseInt(container.style("width"), 10),
-      height = parseInt(container.style("height"), 10),
-      aspect = width / height;
-  svg.attr("viewBox", "0 0 " + width + " " + height)
-      .attr("perserveAspectRatio", "xMinYMid meet")
-      .call(resize);
+    width = parseInt(container.style("width"), 10),
+    height = parseInt(container.style("height"), 10),
+    aspect = width / height;
+  svg
+    .attr("viewBox", "0 0 " + width + " " + height)
+    .attr("perserveAspectRatio", "xMinYMid meet")
+    .call(resize);
   d3.select(window).on("resize." + container.attr("id"), resize);
   function resize() {
-      var targetWidth = parseInt(container.style("width"), 10);
-      svg.attr("width", targetWidth);
-      svg.attr("height", Math.round(targetWidth / aspect));
+    var targetWidth = parseInt(container.style("width"), 10);
+    svg.attr("width", targetWidth);
+    svg.attr("height", Math.round(targetWidth / aspect));
   }
 }
 //
 // TODO objects parameters for more configurability
-function getBaseSVG(_sel, _svg_id, _dims, _responsivefy){
+function getBaseSVG(_sel, _svg_id, _dims, _responsivefy) {
   var _d = _dims;
-  return d3.select(_sel)
+  return d3
+    .select(_sel)
     .append("svg")
-      .attr("id", _svg_id)
-      .attr("height", "100%")
-      .attr("width", "100%")
-      .attr("style", "max-width: 100%;overflow:visible;")
-    .append('g')
-      .attr("transform", `translate(${_d.mL},${_d.mT})`)
-    .call(_responsivefy)
-  ;
+    .attr("id", _svg_id)
+    .attr("height", "100%")
+    .attr("width", "100%")
+    .attr("style", "max-width: 100%;overflow:visible;")
+    .append("g")
+    .attr("transform", `translate(${_d.mL},${_d.mT})`)
+    .call(_responsivefy);
 }
 
 //
 function BarChartSimple(name) {
   //
-  var band, val,
+  var band,
+    val,
     svg_id,
     // vertical or horizontal
     // Horizontal: Band is X axis, Val is Y axis
@@ -45,53 +47,54 @@ function BarChartSimple(name) {
     orient = "horizontal",
     data = [],
     band_domain = [],
-    band_accessor = d=>d.key,
+    band_accessor = (d) => d.key,
     val_domain = [],
     colour = d3.scaleOrdinal(),
-    colourDomain = ["A","B"],
+    colourDomain = ["A", "B"],
     colourRange = d3.schemeTableau10,
     width = 800,
     height = 600,
-    marginLeft = 0, marginRight = 0, marginBottom = 0, marginTop = 0,
+    marginLeft = 0,
+    marginRight = 0,
+    marginBottom = 0,
+    marginTop = 0,
     dims = {
       w: width,
       h: height,
       mR: marginRight,
       mL: marginLeft,
       mT: marginTop,
-      mB: marginBottom
+      mB: marginBottom,
     },
     withText = false,
-    textFill = ["black","lightgrey"],
-    textAnchor = ["end","end"],
+    textFill = ["black", "lightgrey"],
+    textAnchor = ["end", "end"],
     textDeltaY = 0,
     textDeltaX = 0,
-    textFormat = d=>d,
+    textFormat = (d) => d,
     fontDividend = 4,
     domainRound = false,
     barLengthPercentage = 50,
     domainAsObj = false,
     debug = false,
     baseline_offset = 1,
-    corner_radius_x = 3
-    ;
-
+    corner_radius_x = 3;
   var updateData,
     updateDomain,
     updateOrient,
     updateWidth,
     updateHeight,
-    updateMarginLeft, 
-    updateMarginRight, 
-    updateMarginBottom, 
+    updateMarginLeft,
+    updateMarginRight,
+    updateMarginBottom,
     updateMarginTop,
-    updateDomainVal, 
+    updateDomainVal,
     updateDomainBand,
     updateBandAccessor,
     updateColour,
-    updateColourRange, 
+    updateColourRange,
     updateColourDomain,
-    updateWithText, 
+    updateWithText,
     updateTextFill,
     updateTextAnchor,
     updateTextDeltaY,
@@ -99,233 +102,219 @@ function BarChartSimple(name) {
     updateTextFormat,
     updateDomainRound,
     updateBarLength,
-    updateCornerRadiusX
-  ;
+    updateCornerRadiusX;
 
   function chart(selection) {
     //
-    selection.each(function() {
+    selection.each(function () {
       //
       var boundedWidth = dims.w - dims.mR - dims.mL,
         boundedHeight = dims.h - dims.mT - dims.mB,
         barPadding = 0.1,
         barSpacing = boundedHeight / data.length,
         barHeight = barSpacing - barPadding,
-        widthScale = boundedWidth / val_domain[1]
-      ;
-      if(debug){
+        widthScale = boundedWidth / val_domain[1];
+      if (debug) {
         console.log(dims);
         console.log(boundedHeight, boundedWidth);
       }
       //
-      var chartColour = colour
-        .domain(colourDomain)
-        .range(colourRange);
+      var chartColour = colour.domain(colourDomain).range(colourRange);
       //
       var svg = getBaseSVG(this, svg_id, dims, responsivefy);
       //
-      var quant_band = 
-        d3.scaleBand()
-        .domain(domainAsObj 
-          ? band_domain.map(d=>band_accessor(d)) 
-          : band_domain)
-          .rangeRound(orient == "vertical" 
-            ? [0,boundedHeight] 
-            : [0,boundedWidth])
-          .padding(barPadding);
+      var quant_band = d3
+        .scaleBand()
+        .domain(
+          domainAsObj ? band_domain.map((d) => band_accessor(d)) : band_domain,
+        )
+        .rangeRound(
+          orient == "vertical" ? [0, boundedHeight] : [0, boundedWidth],
+        )
+        .padding(barPadding);
       //
-      var val_linear = 
-        d3.scaleLinear()
-          .domain(val_domain)
+      var val_linear = d3.scaleLinear().domain(val_domain);
       //
-      domainRound 
-        ? (val_linear
-          .rangeRound(orient === "vertical" 
-            ? [0,boundedWidth] 
-            : [boundedHeight,0]))
-        : (val_linear
-          .range(orient === "vertical" 
-            ? [0,boundedWidth] 
-            : [boundedHeight,0]))
+      domainRound
+        ? val_linear.rangeRound(
+            orient === "vertical" ? [0, boundedWidth] : [boundedHeight, 0],
+          )
+        : val_linear.range(
+            orient === "vertical" ? [0, boundedWidth] : [boundedHeight, 0],
+          );
       //
-      var bottomAxis =
-        svg.append("g")
-          .attr("transform", `translate(0,${boundedHeight})`);
-      var leftAxis =
-         svg.append("g")
-          .attr("transform", `translate(0,0)`);
+      var bottomAxis = svg
+        .append("g")
+        .attr("transform", `translate(0,${boundedHeight})`);
+      var leftAxis = svg.append("g").attr("transform", `translate(0,0)`);
       //
       //
-      function transitionDims(svg){
-        if (orient === 'vertical'){
+      function transitionDims(svg) {
+        if (orient === "vertical") {
           svg
             .attr("height", quant_band.bandwidth())
             .transition()
-             .ease(d3.easeLinear)
-             .duration(500)
-             .delay(function (d, i) {
-                 return i * 50;
-             })
+            .ease(d3.easeLinear)
+            .duration(500)
+            .delay(function (d, i) {
+              return i * 50;
+            })
             .attr("width", (d) => val_linear(val(d)) - val_linear(0));
         } else {
           svg
             .attr("width", 0)
             .transition()
-             .ease(d3.easeLinear)
-             .duration(500)
-             .delay(function (d, i) {
-                 return i * 50;
-             })
+            .ease(d3.easeLinear)
+            .duration(500)
+            .delay(function (d, i) {
+              return i * 50;
+            })
             .attr("width", quant_band.bandwidth())
-            .attr("y", d => val_linear(val(d))) 
+            .attr("y", (d) => val_linear(val(d)))
             .attr("x", (d) => quant_band(band(d)))
             .attr("height", (d) => boundedHeight - val_linear(val(d)));
         }
       }
       //
-      svg.append("g")
+      svg
+        .append("g")
         .selectAll()
         .data(data)
         .join("rect")
-          .attr("fill", (d) => chartColour(band(d)))
-          .attr("x", (d) => orient == "vertical" 
-            ? val_linear(baseline_offset) 
-            : quant_band(band(d)))
-          .attr("y", (d) => orient == "vertical" 
-            ? quant_band(band(d)) 
-            : val_linear(val(d)))
-          .attr("rx", corner_radius_x)
-        .call(transitionDims)
-      ;
+        .attr("fill", (d) => chartColour(band(d)))
+        .attr("x", (d) =>
+          orient == "vertical"
+            ? val_linear(baseline_offset)
+            : quant_band(band(d)),
+        )
+        .attr("y", (d) =>
+          orient == "vertical" ? quant_band(band(d)) : val_linear(val(d)),
+        )
+        .attr("rx", corner_radius_x)
+        .call(transitionDims);
       //
       if (withText) {
-        svg.append("g")
+        svg
+          .append("g")
           .attr("fill", textFill[0])
           .attr("text-anchor", textAnchor[0])
           .selectAll()
           .data(data)
           .join("text")
-            .attr("class", "bar-text")
-            .attr("x", (d) => orient == "vertical" 
-              ? val_linear(0) 
-              : quant_band(band(d)) + quant_band.bandwidth()/2)
-            .attr("y", (d) => orient == "vertical"
-              ? quant_band(band(d)) + quant_band.bandwidth()/2 
-              : boundedHeight)
-            .attr("dy", textDeltaY)
-            .attr("dx", textDeltaX)
-            .attr("font-size", (d) => quant_band.bandwidth()/fontDividend)
-            .attr("opacity", 0)
+          .attr("class", "bar-text")
+          .attr("x", (d) =>
+            orient == "vertical"
+              ? val_linear(0)
+              : quant_band(band(d)) + quant_band.bandwidth() / 2,
+          )
+          .attr("y", (d) =>
+            orient == "vertical"
+              ? quant_band(band(d)) + quant_band.bandwidth() / 2
+              : boundedHeight,
+          )
+          .attr("dy", textDeltaY)
+          .attr("dx", textDeltaX)
+          .attr("font-size", (d) => quant_band.bandwidth() / fontDividend)
+          .attr("opacity", 0)
 
-            .text((d) => textFormat(val(d)))
-              .call((text) => 
-                  text.filter(function(d){
-                    var dimm = Math.abs(val_linear(val(d)) - val_linear(0));
-                    var is = dimm > (
-                      (orient==="vertical" 
-                        ? boundedWidth 
-                        : boundedHeight)
-                        *(barLengthPercentage/100)
-                    );
-                    return is;
-                  })
-                  .attr("dx", orient == "vertical" 
-                    ? textDeltaX*-1 
-                    : textDeltaX)
-                  .attr("dy", orient == "vertical" 
-                    ? textDeltaY 
-                    : (textDeltaY*2)*-1)
-                  .attr("fill", textFill[1])
-                  .attr("text-anchor", textAnchor[1]))
+          .text((d) => textFormat(val(d)))
+          .call((text) =>
+            text
+              .filter(function (d) {
+                var dimm = Math.abs(val_linear(val(d)) - val_linear(0));
+                var is =
+                  dimm >
+                  (orient === "vertical" ? boundedWidth : boundedHeight) *
+                    (barLengthPercentage / 100);
+                return is;
+              })
+              .attr("dx", orient == "vertical" ? textDeltaX * -1 : textDeltaX)
+              .attr(
+                "dy",
+                orient == "vertical" ? textDeltaY : textDeltaY * 2 * -1,
+              )
+              .attr("fill", textFill[1])
+              .attr("text-anchor", textAnchor[1]),
+          )
 
-            .transition()
-              .duration(500)
-              .ease(d3.easeLinear)
-            .attr("x", (d) => orient == "vertical" 
-              ? val_linear(val(d)) 
-              : quant_band(band(d)) + quant_band.bandwidth()/2)
-            .attr("y", (d) => orient == "vertical"
-              ? quant_band(band(d)) + quant_band.bandwidth()/2 
-              : val_linear(val(d)))
-            .attr("opacity", 1)
-          ;
+          .transition()
+          .duration(500)
+          .ease(d3.easeLinear)
+          .attr("x", (d) =>
+            orient == "vertical"
+              ? val_linear(val(d))
+              : quant_band(band(d)) + quant_band.bandwidth() / 2,
+          )
+          .attr("y", (d) =>
+            orient == "vertical"
+              ? quant_band(band(d)) + quant_band.bandwidth() / 2
+              : val_linear(val(d)),
+          )
+          .attr("opacity", 1);
       }
       //
       //
-      var bottomGen =
-        d3.axisBottom(orient === 'vertical' 
-          ? val_linear 
-          : quant_band)
-            .ticks(4);
-      var leftGen =
-        d3.axisLeft(orient === 'vertical' 
-          ? quant_band 
-          : val_linear)
-            .ticks(5);
-      (orient === "vertical"
-          ? leftGen.tickFormat((d,i)=>domainAsObj
-            ? band_domain[i].val
-            : band_domain[i])
-          : bottomGen.tickFormat((d,i)=>domainAsObj
-            ? band_domain[i].val
-            : band_domain[i]));
+      var bottomGen = d3
+        .axisBottom(orient === "vertical" ? val_linear : quant_band)
+        .ticks(4);
+      var leftGen = d3
+        .axisLeft(orient === "vertical" ? quant_band : val_linear)
+        .ticks(5);
+      orient === "vertical"
+        ? leftGen.tickFormat((d, i) =>
+            domainAsObj ? band_domain[i].val : band_domain[i],
+          )
+        : bottomGen.tickFormat((d, i) =>
+            domainAsObj ? band_domain[i].val : band_domain[i],
+          );
       //
-      bottomAxis
-        .call(bottomGen);
-      leftAxis
-        .call(leftGen)
+      bottomAxis.call(bottomGen);
+      leftAxis.call(leftGen);
       //
       //
       // Duplication
-      updateData = function(){
+      updateData = function () {
         //
-        quant_band.domain(data.map(d=>band(d)))
-        val_linear.domain([0,d3.max(data,d=>val(d))])
+        quant_band.domain(data.map((d) => band(d)));
+        val_linear.domain([0, d3.max(data, (d) => val(d))]);
         //
-        var bottomGen = d3.axisBottom(orient === 'vertical' 
-          ? val_linear 
-          : quant_band)
-            .ticks(4);
-          (orient == "vertical"
-            ? true
-            : bottomGen.tickFormat((d,i)=>domainAsObj
-              ? band_domain[i].val
-              : band_domain[i]));
-        bottomAxis
-          .transition().duration(800)
-          .call(bottomGen);
+        var bottomGen = d3
+          .axisBottom(orient === "vertical" ? val_linear : quant_band)
+          .ticks(4);
+        orient == "vertical"
+          ? true
+          : bottomGen.tickFormat((d, i) =>
+              domainAsObj ? band_domain[i].val : band_domain[i],
+            );
+        bottomAxis.transition().duration(800).call(bottomGen);
         //
-        var leftGen =
-          d3.axisLeft(orient === 'vertical' 
-          ? quant_band 
-          : val_linear)
-            .ticks(5);
-        leftAxis
-          .transition().duration(800)
-          .call(leftGen)
+        var leftGen = d3
+          .axisLeft(orient === "vertical" ? quant_band : val_linear)
+          .ticks(5);
+        leftAxis.transition().duration(800).call(leftGen);
         //
-        function updateDims(svg){
-          if (orient === 'vertical'){
+        function updateDims(svg) {
+          if (orient === "vertical") {
             svg
               .attr("height", quant_band.bandwidth())
-              .attr("y", (d) => quant_band(band(d))) 
+              .attr("y", (d) => quant_band(band(d)))
               .attr("x", (d) => val_linear(0))
               .transition()
-                .ease(d3.easeLinear)
-                .duration(500)
-                .delay(function (d, i) {
-                  return i * 50;
-                })
-                .attr("width", (d) => val_linear(val(d)) - val_linear(0));
+              .ease(d3.easeLinear)
+              .duration(500)
+              .delay(function (d, i) {
+                return i * 50;
+              })
+              .attr("width", (d) => val_linear(val(d)) - val_linear(0));
           } else {
             svg
               .attr("width", quant_band.bandwidth())
               .transition()
-               .ease(d3.easeLinear)
-               .duration(500)
-               .delay(function (d, i) {
-                   return i * 50;
-               })
+              .ease(d3.easeLinear)
+              .duration(500)
+              .delay(function (d, i) {
+                return i * 50;
+              })
               .attr("x", (d) => quant_band(band(d)))
               .attr("y", (d) => val_linear(val(d)))
               .attr("height", (d) => boundedHeight - val_linear(val(d)));
@@ -336,348 +325,309 @@ function BarChartSimple(name) {
           .selectAll("rect")
           .data(data)
           .join("rect")
-            .attr("fill", (d) => chartColour(band(d)))
-          .call(updateDims)
+          .attr("fill", (d) => chartColour(band(d)))
+          .call(updateDims);
 
-        if(withText){
-          svg.selectAll("text.bar-text").remove()
-          svg.append("g")
+        if (withText) {
+          svg.selectAll("text.bar-text").remove();
+          svg
+            .append("g")
             .attr("fill", textFill[0])
             .attr("text-anchor", textAnchor[0])
             .selectAll()
             .data(data)
             .join("text")
-              .attr("class", "bar-text")
-              .attr("x", (d) => orient == "vertical" 
-                ? val_linear(val(d)) 
-                : quant_band(band(d)) + quant_band.bandwidth()/2)
-              .attr("y", (d) => orient == "vertical"
-                ? quant_band(band(d)) + quant_band.bandwidth()/2 
-                : boundedHeight)
-              .attr("dy", textDeltaY)
-              .attr("dx", textDeltaX)
-              .attr("font-size", (d) => quant_band.bandwidth()/fontDividend)
-              .attr("opacity", 0)
+            .attr("class", "bar-text")
+            .attr("x", (d) =>
+              orient == "vertical"
+                ? val_linear(val(d))
+                : quant_band(band(d)) + quant_band.bandwidth() / 2,
+            )
+            .attr("y", (d) =>
+              orient == "vertical"
+                ? quant_band(band(d)) + quant_band.bandwidth() / 2
+                : boundedHeight,
+            )
+            .attr("dy", textDeltaY)
+            .attr("dx", textDeltaX)
+            .attr("font-size", (d) => quant_band.bandwidth() / fontDividend)
+            .attr("opacity", 0)
 
-              .text((d) => textFormat(val(d)))
-                .call((text) => 
-                  // Is the bar larger than a % of range extent?
-                  text.filter(function(d){
-                    var dimm = Math.abs(val_linear(val(d)) - val_linear(0));
-                    var is = dimm > (
-                      (orient==="vertical" 
-                        ? boundedWidth 
-                        : boundedHeight)*(barLengthPercentage/100)
-                    );
-                    return is;
-                  })
-                  .attr("dx", orient == "vertical" 
-                    ? textDeltaX*-1 
-                    : textDeltaX)
-                  .attr("dy", orient == "vertical" 
-                    ? textDeltaY 
-                    // offset to account for height of font
-                    : (textDeltaY*2)*-1)
-                  .attr("fill", textFill[1])
-                  .attr("text-anchor", textAnchor[1]))
+            .text((d) => textFormat(val(d)))
+            .call((text) =>
+              // Is the bar larger than a % of range extent?
+              text
+                .filter(function (d) {
+                  var dimm = Math.abs(val_linear(val(d)) - val_linear(0));
+                  var is =
+                    dimm >
+                    (orient === "vertical" ? boundedWidth : boundedHeight) *
+                      (barLengthPercentage / 100);
+                  return is;
+                })
+                .attr("dx", orient == "vertical" ? textDeltaX * -1 : textDeltaX)
+                .attr(
+                  "dy",
+                  orient == "vertical"
+                    ? textDeltaY
+                    : // offset to account for height of font
+                      textDeltaY * 2 * -1,
+                )
+                .attr("fill", textFill[1])
+                .attr("text-anchor", textAnchor[1]),
+            )
 
-              .transition()
-                .duration(500)
-                .ease(d3.easeLinear)
-              .attr("x", (d) => orient == "vertical" 
-                ? val_linear(val(d)) 
-                : quant_band(band(d)) + quant_band.bandwidth()/2)
-              .attr("y", (d) => orient == "vertical"
-                ? quant_band(band(d)) + quant_band.bandwidth()/2 
-                : val_linear(val(d)))
-              .attr("opacity", 1)
-            ;
+            .transition()
+            .duration(500)
+            .ease(d3.easeLinear)
+            .attr("x", (d) =>
+              orient == "vertical"
+                ? val_linear(val(d))
+                : quant_band(band(d)) + quant_band.bandwidth() / 2,
+            )
+            .attr("y", (d) =>
+              orient == "vertical"
+                ? quant_band(band(d)) + quant_band.bandwidth() / 2
+                : val_linear(val(d)),
+            )
+            .attr("opacity", 1);
         }
-
       };
-      updateDebug = function(){
-
-      };
-      updateBaselineOffset = function(){
-
-      };
-      updateCornerRadiusX = function(){
-        
-      };
-      updateOrient = function(){
-
-      };
-      updateWidth = function(){
-
-      };
-      updateHeight = function(){
-
-      };
-      updateMarginLeft = function(){
-
-      };
-      updateMarginRight = function(){
-
-      };
-      updateMarginTop= function(){
-
-      };
-      updateMarginBottom = function(){
-
-      };
-      updateDomainVal = function(){
-
-      };
-      updateDomainBand = function(){
-
-      };
-      updateBandAccessor = function() {
-
-      };
-      updateColour = function(){
-
-      };
-      updateColourDomain = function(){
-
-      };
-      updateColourRange = function(){
-
-      };
-      updateWithText = function(){
-
-      };
-      updateTextFill = function(){
-
-      };
-      updateTextAnchor = function(){
-
-      };
-      updateTextDeltaY = function(){
-
-      };
-      updateTextDeltaX = function(){
-
-      };
-      updateTextFormat = function(){
-
-      };
-      updateDomainRound = function(){
-
-      };
-      updateBarLength = function(){
-
-      };
+      updateDebug = function () {};
+      updateBaselineOffset = function () {};
+      updateCornerRadiusX = function () {};
+      updateOrient = function () {};
+      updateWidth = function () {};
+      updateHeight = function () {};
+      updateMarginLeft = function () {};
+      updateMarginRight = function () {};
+      updateMarginTop = function () {};
+      updateMarginBottom = function () {};
+      updateDomainVal = function () {};
+      updateDomainBand = function () {};
+      updateBandAccessor = function () {};
+      updateColour = function () {};
+      updateColourDomain = function () {};
+      updateColourRange = function () {};
+      updateWithText = function () {};
+      updateTextFill = function () {};
+      updateTextAnchor = function () {};
+      updateTextDeltaY = function () {};
+      updateTextDeltaX = function () {};
+      updateTextFormat = function () {};
+      updateDomainRound = function () {};
+      updateBarLength = function () {};
     });
   }
   //
-  chart.Debug = function(bool){
-    if(!arguments.length) return debug;
+  chart.Debug = function (bool) {
+    if (!arguments.length) return debug;
     debug = bool;
-    if (typeof updateDebug === 'function') updateDebug();
+    if (typeof updateDebug === "function") updateDebug();
     return chart;
-  }
-  chart.BaselineOffset = function(val){
-    if(!arguments.length) return baseline_offset;
+  };
+  chart.BaselineOffset = function (val) {
+    if (!arguments.length) return baseline_offset;
     baseline_offset = val;
-    if(typeof updateBaselineOffset === 'function') updateBaselineOffset();
+    if (typeof updateBaselineOffset === "function") updateBaselineOffset();
     return chart;
-  }
-  chart.CornerRadiusX = function(val){
-    if(!arguments.length) return corner_radius_x;
+  };
+  chart.CornerRadiusX = function (val) {
+    if (!arguments.length) return corner_radius_x;
     corner_radius_x = val;
-    if(typeof updateCornerRadiusX === 'function') updateCornerRadiusX();
+    if (typeof updateCornerRadiusX === "function") updateCornerRadiusX();
     return chart;
-  }
+  };
   //
-  chart.SvgID = function(val){
-    if(!arguments.length) return svg_id;
+  chart.SvgID = function (val) {
+    if (!arguments.length) return svg_id;
     svg_id = val;
     return chart;
-  }
+  };
   //
-  chart.WithText = function(bool){
-    if(!arguments.length) return withText;
+  chart.WithText = function (bool) {
+    if (!arguments.length) return withText;
     withText = bool;
-    if (typeof updateWithText === 'function') updateWithText();
+    if (typeof updateWithText === "function") updateWithText();
     return chart;
-  }
+  };
   //
-  chart.TextFormat = function(val){
-    if(!arguments.length) return textFormat;
+  chart.TextFormat = function (val) {
+    if (!arguments.length) return textFormat;
     textFormat = val;
-    if (typeof updateTextFormat === 'function') updateTextFormat();
+    if (typeof updateTextFormat === "function") updateTextFormat();
     return chart;
-  }
+  };
   //
-  chart.FontDividend = function(val){
-    if(!arguments.length) return fontDividend;
+  chart.FontDividend = function (val) {
+    if (!arguments.length) return fontDividend;
     fontDividend = val;
     return chart;
-  }
+  };
   //
-  chart.TextFill = function(val){
-    if(!arguments.length) return textFill;
+  chart.TextFill = function (val) {
+    if (!arguments.length) return textFill;
     textFill = val;
-    if (typeof updateTextFill === 'function') updateTextFill();
+    if (typeof updateTextFill === "function") updateTextFill();
     return chart;
-  }
+  };
   //
-  chart.TextAnchor = function(val) {
-    if(!arguments.length) return textAnchor;
+  chart.TextAnchor = function (val) {
+    if (!arguments.length) return textAnchor;
     textAnchor = val;
-    if (typeof updateTextAnchor === 'function') updateTextAnchor();
+    if (typeof updateTextAnchor === "function") updateTextAnchor();
     return chart;
-  }
+  };
   //
-  chart.TextDeltaY = function(val) {
-    if(!arguments.length) return textDeltaY;
+  chart.TextDeltaY = function (val) {
+    if (!arguments.length) return textDeltaY;
     textDeltaY = val;
-    if (typeof updateTextDeltaY === 'function') updateTextDeltaY();
+    if (typeof updateTextDeltaY === "function") updateTextDeltaY();
     return chart;
-  }
+  };
   //
-  chart.TextDeltaX = function(val) {
-    if(!arguments.length) return textDeltaX;
+  chart.TextDeltaX = function (val) {
+    if (!arguments.length) return textDeltaX;
     textDeltaX = val;
-    if (typeof updateTextDeltaX === 'function') updateTextDeltaX();
+    if (typeof updateTextDeltaX === "function") updateTextDeltaX();
     return chart;
-  }
+  };
   //
-  chart.Band = function(val) {
-    if(!arguments.length) return band;
+  chart.Band = function (val) {
+    if (!arguments.length) return band;
     band = val;
     return chart;
-  }
+  };
   //
-  chart.Val = function(v) {
-    if(!arguments.length) return val;
+  chart.Val = function (v) {
+    if (!arguments.length) return val;
     val = v;
     return chart;
-  }
+  };
   //
-  chart.Colour = function(val){
-    if(!arguments.length) return colour;
+  chart.Colour = function (val) {
+    if (!arguments.length) return colour;
     colour = val;
-    if (typeof updateColour === 'function') updateColour();
+    if (typeof updateColour === "function") updateColour();
     return chart;
-  }
+  };
   //
-  chart.ColourDomain = function(val) {
-    if(!arguments.length) return colourDomain;
+  chart.ColourDomain = function (val) {
+    if (!arguments.length) return colourDomain;
     colourDomain = val;
-    if (typeof updateColourDomain === 'function') updateColourDomain();
+    if (typeof updateColourDomain === "function") updateColourDomain();
     return chart;
-  }
+  };
   //
-  chart.ColourRange = function(val) {
-    if(!arguments.length) return colourRange;
+  chart.ColourRange = function (val) {
+    if (!arguments.length) return colourRange;
     colourRange = val;
-    if (typeof updateColourRange === 'function') updateColourRange();
+    if (typeof updateColourRange === "function") updateColourRange();
     return chart;
-  }
+  };
   //
-  chart.Data = function(val) {
-    if(!arguments.length) return data;
+  chart.Data = function (val) {
+    if (!arguments.length) return data;
     data = val;
-    if (typeof updateData === 'function') updateData();
+    if (typeof updateData === "function") updateData();
     return chart;
-  }
+  };
   //
-  chart.DomainBand = function(val){
-    if(!arguments.length) return band_domain;
+  chart.DomainBand = function (val) {
+    if (!arguments.length) return band_domain;
     band_domain = val;
-    if (typeof updateDomainBand === 'function') updateDomainBand();
+    if (typeof updateDomainBand === "function") updateDomainBand();
     return chart;
-  }
+  };
   //
-  chart.BandAccessor = function(val){
-    if(!arguments.length) return band_accessor;
+  chart.BandAccessor = function (val) {
+    if (!arguments.length) return band_accessor;
     band_accessor = val;
-    if (typeof updateBandAccessor === 'function') updateBandAccessor();
+    if (typeof updateBandAccessor === "function") updateBandAccessor();
     return chart;
-  }
+  };
   //
-  chart.DomainBandAsObject = function(val){
-    if(!arguments.length) return domainAsObj;
+  chart.DomainBandAsObject = function (val) {
+    if (!arguments.length) return domainAsObj;
     domainAsObj = val;
     return chart;
-  }
+  };
   //
-  chart.DomainRound = function(val){
-    if(!arguments.length) return domainRound;
+  chart.DomainRound = function (val) {
+    if (!arguments.length) return domainRound;
     domainRound = val;
-    if (typeof updateDomainRound === 'function') updateDomainRound();
+    if (typeof updateDomainRound === "function") updateDomainRound();
     return chart;
-  }
+  };
   //
-  chart.DomainVal = function(val){
-    if(!arguments.length) return val_domain;
+  chart.DomainVal = function (val) {
+    if (!arguments.length) return val_domain;
     val_domain = val;
-    if (typeof updateDomainVal === 'function') updateDomainVal();
+    if (typeof updateDomainVal === "function") updateDomainVal();
     return chart;
-  }
+  };
   //
-  chart.Orient = function(val) {
-    if(!arguments.length) return orient;
+  chart.Orient = function (val) {
+    if (!arguments.length) return orient;
     orient = val;
-    if (typeof updateOrient === 'function') updateOrient();
+    if (typeof updateOrient === "function") updateOrient();
     return chart;
-  }
+  };
   //
-  chart.Width = function(val) {
-    if(!arguments.length) return width;
+  chart.Width = function (val) {
+    if (!arguments.length) return width;
     width = val;
     dims.w = width;
-    if (typeof updateWidth === 'function') updateWidth();
+    if (typeof updateWidth === "function") updateWidth();
     return chart;
-  }
+  };
   //
-  chart.Height = function(val){
-    if(!arguments.length) return height;
+  chart.Height = function (val) {
+    if (!arguments.length) return height;
     height = val;
     dims.h = height;
-    if (typeof updateHeight === 'function') updateHeight();
+    if (typeof updateHeight === "function") updateHeight();
     return chart;
-  }
+  };
   //
-  chart.MarginLeft = function(val){
-    if(!arguments.length) return marginLeft;
+  chart.MarginLeft = function (val) {
+    if (!arguments.length) return marginLeft;
     marginLeft = val;
     dims.mL = marginLeft;
-    if (typeof updateMarginLeft === 'function') updateMarginLeft();
+    if (typeof updateMarginLeft === "function") updateMarginLeft();
     return chart;
-  }
+  };
   //
-  chart.MarginRight = function(val){
-    if(!arguments.length) return marginRight;
+  chart.MarginRight = function (val) {
+    if (!arguments.length) return marginRight;
     marginRight = val;
     dims.mR = marginRight;
-    if (typeof updateMarginRight === 'function') updateMarginRight();
+    if (typeof updateMarginRight === "function") updateMarginRight();
     return chart;
-  }
+  };
   //
-  chart.MarginTop = function(val){
-    if(!arguments.length) return marginTop;
+  chart.MarginTop = function (val) {
+    if (!arguments.length) return marginTop;
     marginTop = val;
     dims.mT = marginTop;
-    if (typeof updateMarginTop === 'function') updateMarginTop();
+    if (typeof updateMarginTop === "function") updateMarginTop();
     return chart;
-  }
+  };
   //
-  chart.MarginBottom = function(val){
-    if(!arguments.length) return marginBottom;
+  chart.MarginBottom = function (val) {
+    if (!arguments.length) return marginBottom;
     marginBottom = val;
     dims.mB = marginBottom;
-    if (typeof updateMarginBottom === 'function') updateMarginBottom();
+    if (typeof updateMarginBottom === "function") updateMarginBottom();
     return chart;
-  }
+  };
   //
-  chart.BarLength = function(val) {
-    if(!arguments.length) return barLengthPercentage;
+  chart.BarLength = function (val) {
+    if (!arguments.length) return barLengthPercentage;
     barLengthPercentage = val;
-    if (typeof updateBarLength === 'function') updateBarLength();
+    if (typeof updateBarLength === "function") updateBarLength();
     return chart;
-  }
+  };
   //
   return chart;
 }
@@ -687,23 +637,29 @@ function GroupedBarChartSimple() {
   //
   var data = [],
     svg_id = "",
-    band_domain, subGroup_domain, val_domain,
+    band_domain,
+    subGroup_domain,
+    group_accessor = (g) => g.name,
+    val_domain,
     orient = "horizontal",
-    colourDomain = ["A","B"], 
+    colourDomain = ["A", "B"],
     colourRange = d3.schemeTableau10,
     colour = d3.scaleOrdinal(),
     width = 800,
     height = 600,
-    marginLeft = 0, marginRight = 0, marginBottom = 0, marginTop = 0,
+    marginLeft = 0,
+    marginRight = 0,
+    marginBottom = 0,
+    marginTop = 0,
     dims = {
       w: width,
       h: height,
       mR: marginRight,
       mL: marginLeft,
       mT: marginTop,
-      mB: marginBottom
-    }
-  ;
+      mB: marginBottom,
+    },
+    withText = false;
   //
   var updateData,
     updateDomain,
@@ -711,734 +667,765 @@ function GroupedBarChartSimple() {
     updateColour,
     updateWidth,
     updateHeight,
-    updateMarginLeft, 
-    updateMarginRight, 
-    updateMarginBottom, 
+    updateMarginLeft,
+    updateMarginRight,
+    updateMarginBottom,
     updateMarginTop,
     updateBarPadding,
-    updateDomainVal, 
+    updateDomainVal,
     updateDomainBand,
     updateDomainSubgroup,
-    updateColourRange, 
+    updateColourRange,
     updateColourDomain,
-    updateText, 
+    updateText,
     updateTextFill,
     updateTextAnchor,
     updateTextDeltaY,
-    updateTextDeltaX
-  ;
+    updateTextDeltaX;
   //
   //
   function chart(selection) {
-    selection.each(function(){
-      var boundedWidth = dims.w - dims.mR - dims.mL, 
+    selection.each(function () {
+      var boundedWidth = dims.w - dims.mR - dims.mL,
         boundedHeight = dims.h - dims.mT - dims.mB,
         barPadding = 0.1,
         barGroupPadding = 0.1,
         subGroup_padding = 0.1,
         barSpacing = boundedHeight / data.length,
-        barHeight = barSpacing - barPadding
-      ;
+        barHeight = barSpacing - barPadding;
       //
-      var chartColour = colour
-        .domain(colourDomain)
-        .range(colourRange)
+      var chartColour = colour.domain(colourDomain).range(colourRange);
       //
       var svg = getBaseSVG(this, svg_id, dims, responsivefy);
       //
-      var groupBand = d3.scaleBand() 
+      var groupBand = d3
+        .scaleBand()
         .domain(band_domain)
-        .rangeRound([0,boundedWidth])
-        .paddingInner(barGroupPadding)
+        .rangeRound([0, boundedWidth])
+        .paddingInner(barGroupPadding);
       //
-      var subGroupBand = d3.scaleBand()
+      var subGroupBand = d3
+        .scaleBand()
         .domain(subGroup_domain)
-        .rangeRound([0,groupBand.bandwidth()])
+        .rangeRound([0, groupBand.bandwidth()])
         .padding(subGroup_padding);
       //
-      var val_linear = d3.scaleLinear() 
-        .domain(val_domain).nice()
-        .rangeRound([boundedHeight,0])
+      var val_linear = d3
+        .scaleLinear()
+        .domain(val_domain)
+        .nice()
+        .rangeRound([boundedHeight, 0]);
       //
       //
-      svg.append("g")
+      svg
+        .append("g")
         .selectAll("g")
         // Enter in data = loop group per group
         .data(data)
         .join("g")
-        .attr("transform", d => `translate(${groupBand(d.name)}, 0)`)
+        .attr(
+          "transform",
+          (d) => `translate(${groupBand(group_accessor(d))}, 0)`,
+        )
         .selectAll("rect")
-        .data(function(d) { 
-          return subGroup_domain
-            .map(function(key) { 
-              return {key: key, value: d[key], name:d["name"]}; 
-            }); 
+        .data(function (d) {
+          return subGroup_domain.map(function (key) {
+            return { key: key, value: d[key], name: group_accessor(d) };
+          });
         })
         .join("rect")
-          .attr("x", d => subGroupBand(d.key)+(subGroupBand.bandwidth()/2))
-          .attr("y", d => boundedHeight) 
-          .attr("width", 0)
-          .attr("fill", d => chartColour(d.name))
-          .transition()
-            .duration(700)
-            .ease(d3.easeLinear)
-          .attr("height", d => boundedHeight - val_linear(d.value))
-          .attr("y", d => val_linear(d.value)) 
-          .attr("width", subGroupBand.bandwidth())
-          .attr("x", d => subGroupBand(d.key))
-      ;
+        .attr("x", (d) => subGroupBand(d.key) + subGroupBand.bandwidth() / 2)
+        .attr("y", (d) => boundedHeight)
+        .attr("width", 0)
+        .attr("fill", (d) => chartColour(d.name))
+        .transition()
+        .duration(700)
+        .ease(d3.easeLinear)
+        .attr("height", (d) => boundedHeight - val_linear(d.value))
+        .attr("y", (d) => val_linear(d.value))
+        .attr("width", subGroupBand.bandwidth())
+        .attr("x", (d) => subGroupBand(d.key));
       //
-      svg.selectAll() 
-        .data(data) 
-        .join("g") 
-        .attr("transform", (n) => `translate(${groupBand(n.name)},0)`) 
-        .selectAll() 
-        .data(function(d) { 
-          return subGroup_domain
-            .map(function(key) { 
-              return {key: key, value: d[key], name:d["name"]}; 
-            }); 
+      if (withText) {
+        svg
+          .selectAll()
+          .data(data)
+          .join("g")
+          .attr(
+            "transform",
+            (n) => `translate(${groupBand(group_accessor(n))},0)`,
+          )
+          .selectAll()
+          .data(function (d) {
+            return subGroup_domain.map(function (key) {
+              return { key: key, value: d[key], name: d["name"] };
+            });
           })
-        .join("text") 
-          .attr("x", (d) => subGroupBand(d.key)) 
-          .attr("y", (d) => boundedHeight) 
-          .attr("dy", "2em") 
-          .attr("dx", (d)=>subGroupBand.bandwidth()/2) 
-          .attr("fill", "lightgrey") 
-          .attr("font-size", 0) 
-          .attr("text-anchor", "middle") 
+          .join("text")
+          .attr("x", (d) => subGroupBand(d.key))
+          .attr("y", (d) => boundedHeight)
+          .attr("dy", "2em")
+          .attr("dx", (d) => subGroupBand.bandwidth() / 2)
+          .attr("fill", "lightgrey")
+          .attr("font-size", 0)
+          .attr("text-anchor", "middle")
           .attr("opacity", 0)
-          .text((d) => d.value) 
+          .text((d) => d.value)
           .transition()
-            .duration(700)
-            .ease(d3.easeLinear)
-            .attr("y", (d) => 
-              val_linear(d.value) + subGroupBand.bandwidth() / 2)
-            .attr("dy", "-2.5em")
-            .attr("opacity", 1)
-            .attr("font-size", d=>subGroupBand.bandwidth()/4) 
+          .duration(700)
+          .ease(d3.easeLinear)
+          .attr("y", (d) => val_linear(d.value) + subGroupBand.bandwidth() / 2)
+          .attr("dy", "-2.5em")
+          .attr("opacity", 1)
+          .attr("font-size", (d) => subGroupBand.bandwidth() / 4);
+      }
       //
-      svg.append("g")
+      svg
+        .append("g")
         .attr("transform", `translate(0,${boundedHeight})`)
         .call(d3.axisBottom(groupBand).tickSizeOuter(0));
       //
-      svg.append("g")
+      svg
+        .append("g")
         .attr("transform", `translate(0,0)`)
         .call(d3.axisLeft(val_linear));
       //
       //
-      updateData = function() {
-
-      }
+      updateData = function () {};
       //
-      updateColour = function() {
-
-      }
+      updateColour = function () {};
       //
-      updateColourDomain = function () {
-
-      }
+      updateColourDomain = function () {};
       //
-      updateWidth = function() {
-
-      }
+      updateWidth = function () {};
       //
-      updateHeight = function() {
-
-      }
+      updateHeight = function () {};
       //
-      updateMarginTop = function(){
-
-      }
+      updateMarginTop = function () {};
       //
-      updateMarginRight = function(){
-
-      }
+      updateMarginRight = function () {};
       //
-      updateMarginBottom = function(){
-
-      }
+      updateMarginBottom = function () {};
       //
-      updateMarginLeft = function(){
-
-      }
+      updateMarginLeft = function () {};
       //
-
     });
   }
   //
-  chart.Data = function(val){
-    if(!arguments.length) return data;
+  chart.SvgID = function (val) {
+    if (!arguments.length) return svg_id;
+    svg_id = val;
+    return chart;
+  };
+  //
+  chart.Data = function (val) {
+    if (!arguments.length) return data;
     data = val;
-    if (typeof updateData === 'function') updateData();
+    if (typeof updateData === "function") updateData();
     return chart;
-  }
+  };
   //
-  chart.Band = function(val){
-    if(!arguments.length) return band_domain;
+  chart.Band = function (val) {
+    if (!arguments.length) return band_domain;
     band_domain = val;
-    if (typeof updateDomainBand === 'function') updateDomainBand();
+    if (typeof updateDomainBand === "function") updateDomainBand();
     return chart;
-  }
+  };
   //
-  chart.Subgroup = function(val) {
-    if(!arguments.length) return subGroup_domain;
+  chart.Subgroup = function (val) {
+    if (!arguments.length) return subGroup_domain;
     subGroup_domain = val;
-    if (typeof updateDomainSubgroup === 'function') updateDomainSubgroup();
+    if (typeof updateDomainSubgroup === "function") updateDomainSubgroup();
     return chart;
-  }
+  };
   //
-  chart.DomainVal = function(val) {
-    if(!arguments.length) return val_domain;
+  chart.DomainVal = function (val) {
+    if (!arguments.length) return val_domain;
     val_domain = val;
-    if (typeof updateDomainVal === 'function') updateDomainVal();
+    if (typeof updateDomainVal === "function") updateDomainVal();
     return chart;
-  }
+  };
   //
-  chart.Colour = function(val) {
-    if(!arguments.length) return colour;
+  chart.Colour = function (val) {
+    if (!arguments.length) return colour;
     colour = val;
-    if (typeof updateColour === 'function') updateColour();
+    if (typeof updateColour === "function") updateColour();
     return chart;
-  }
+  };
   //
-  chart.ColourDomain = function(val) {
-    if(!arguments.length) return colourDomain;
+  chart.ColourDomain = function (val) {
+    if (!arguments.length) return colourDomain;
     colourDomain = val;
-    if (typeof updateColourDomain === 'function') updateColourDomain();
+    if (typeof updateColourDomain === "function") updateColourDomain();
     return chart;
-  }
+  };
   //
-  chart.Width = function(val) {
-    if(!arguments.length) return width;
+  chart.Width = function (val) {
+    if (!arguments.length) return width;
     width = val;
     dims.w = width;
-    if (typeof updateWidth === 'function') updateWidth();
+    if (typeof updateWidth === "function") updateWidth();
     return chart;
-  }
+  };
   //
-  chart.Height = function(val){
-    if(!arguments.length) return height;
+  chart.Height = function (val) {
+    if (!arguments.length) return height;
     height = val;
     dims.h = height;
-    if (typeof updateHeight === 'function') updateWidth();
+    if (typeof updateHeight === "function") updateWidth();
     return chart;
-  }
+  };
   //
-  chart.MarginLeft = function(val){
-    if(!arguments.length) return marginLeft;
+  chart.MarginLeft = function (val) {
+    if (!arguments.length) return marginLeft;
     marginLeft = val;
     dims.mL = marginLeft;
-    if (typeof updateMarginLeft === 'function') updateMarginLeft();
+    if (typeof updateMarginLeft === "function") updateMarginLeft();
     return chart;
-  }
+  };
   //
-  chart.MarginRight = function(val){
-    if(!arguments.length) return marginRight;
+  chart.MarginRight = function (val) {
+    if (!arguments.length) return marginRight;
     marginRight = val;
     dims.mR = marginRight;
-    if (typeof updateMarginRight === 'function') updateMarginRight();
+    if (typeof updateMarginRight === "function") updateMarginRight();
     return chart;
-  }
+  };
   //
-  chart.MarginTop = function(val){
-    if(!arguments.length) return marginTop;
+  chart.MarginTop = function (val) {
+    if (!arguments.length) return marginTop;
     marginTop = val;
     dims.mT = marginTop;
-    if (typeof updateMarginTop === 'function') updateMarginTop();
+    if (typeof updateMarginTop === "function") updateMarginTop();
     return chart;
-  }
+  };
   //
-  chart.MarginBottom = function(val){
-    if(!arguments.length) return marginBottom;
+  chart.MarginBottom = function (val) {
+    if (!arguments.length) return marginBottom;
     marginBottom = val;
     dims.mB = marginBottom;
-    if (typeof updateMarginBottom === 'function') updateMarginBottom();
+    if (typeof updateMarginBottom === "function") updateMarginBottom();
     return chart;
-  }
+  };
   //
   return chart;
 }
 
 //
 function DonutChartSimple() {
-  var svg_id = "", 
+  var svg_id = "",
     svg,
-    pie, arc,
+    pie,
+    arc,
     data = [],
-    val, key,
-    valtext = (d)=>d,
+    val,
+    key,
+    valtext = (d) => d,
     width = 800,
     height = 600,
-    marginLeft = 0, marginRight = 0, marginBottom = 0, marginTop = 0,
+    marginLeft = 0,
+    marginRight = 0,
+    marginBottom = 0,
+    marginTop = 0,
     dims = {
       w: width,
       h: height,
       mR: marginRight,
       mL: marginLeft,
       mT: marginTop,
-      mB: marginBottom
+      mB: marginBottom,
     },
     colour = d3.scaleOrdinal(),
-    colourDomain = ["A","B"],
+    colourDomain = ["A", "B"],
     colourRange = d3.schemePaired,
     chartColour,
-    outerRadiusArc = dims.w/3,
-    innerRadiusArc = dims.w/8,
+    outerRadiusArc = dims.w / 3,
+    innerRadiusArc = dims.w / 8,
     shadowWidth = 10,
-    outerRadiusArcShadow = innerRadiusArc+1,
+    outerRadiusArcShadow = innerRadiusArc + 1,
     innerRadiusArcShadow = innerRadiusArc - shadowWidth,
-    centerText
-  ;
+    centerText;
 
   var updateData,
     createChart,
     updateWidth,
     updateHeight,
-    updateMarginLeft, 
-    updateMarginRight, 
-    updateMarginBottom, 
+    updateMarginLeft,
+    updateMarginRight,
+    updateMarginBottom,
     updateMarginTop,
     updateCenterText,
     updateColourDomain,
     updateColourRange,
     updateVal,
     updateKey,
-    updateValText
-  ;
+    updateValText;
   //
-  // 
-  createChart = function(svg,dt,fn,outRad,inRad,fillFunc,clsName){
+  //
+  createChart = function (svg, dt, fn, outRad, inRad, fillFunc, clsName) {
+    var arcIn = d3.arc().innerRadius(outRad).outerRadius(inRad);
 
-    var arcIn = d3.arc()
-      .innerRadius(outRad)
-      .outerRadius(inRad);
-
-    var path = svg.selectAll('.'+clsName)
+    var path = svg
+      .selectAll("." + clsName)
       .data(fn(dt))
       .join("path")
-        .attr("class", clsName)
-        .attr("d", arcIn)
-        .attr("fill", fillFunc);
+      .attr("class", clsName)
+      .attr("d", arcIn)
+      .attr("fill", fillFunc);
 
-    path.transition()
+    path
+      .transition()
       .duration(1000)
-      .attrTween('d', function(d) {
-        var interpolate = d3.interpolate({startAngle: 0, endAngle: 0}, d);
-          return function(t) {
-            return arcIn(interpolate(t));
-          };
-    });
+      .attrTween("d", function (d) {
+        var interpolate = d3.interpolate({ startAngle: 0, endAngle: 0 }, d);
+        return function (t) {
+          return arcIn(interpolate(t));
+        };
+      });
   };
   //
 
   function chart(selection) {
     //
-    selection.each(function() {
+    selection.each(function () {
       //
-      var boundedWidth = dims.w - dims.mR - dims.mL, 
+      var boundedWidth = dims.w - dims.mR - dims.mL,
         boundedHeight = dims.h - dims.mT - dims.mB,
-        outerRadiusArcShadow = innerRadiusArc+1,
-        innerRadiusArcShadow = innerRadiusArc - shadowWidth
-      ;
+        outerRadiusArcShadow = innerRadiusArc + 1,
+        innerRadiusArcShadow = innerRadiusArc - shadowWidth;
       //
-      svg = getBaseSVG(this, svg_id, function(_d){
-        return {
-          mL:(boundedWidth/2) + _d.mL,
-          mT:(boundedHeight/2) + _d.mT,
-        }
-      }(dims), responsivefy);
-      ;
+      svg = getBaseSVG(
+        this,
+        svg_id,
+        (function (_d) {
+          return {
+            mL: boundedWidth / 2 + _d.mL,
+            mT: boundedHeight / 2 + _d.mT,
+          };
+        })(dims),
+        responsivefy,
+      );
       //
-      chartColour = colour
-        .domain(colourDomain)
-        .range(colourRange)
+      chartColour = colour.domain(colourDomain).range(colourRange);
       //
-      pie = d3.pie()
-        .value(d => val(d))
-        .padAngle(1/outerRadiusArc)
-        .sort((a,b)=>d3.ascending(val(a), val(b)));
+      pie = d3
+        .pie()
+        .value((d) => val(d))
+        .padAngle(1 / outerRadiusArc)
+        .sort((a, b) => d3.ascending(val(a), val(b)));
 
-      arc = d3.arc()
-        .innerRadius(outerRadiusArc)
-        .outerRadius(innerRadiusArc);
+      arc = d3.arc().innerRadius(outerRadiusArc).outerRadius(innerRadiusArc);
 
-      createChart(svg,data,pie,outerRadiusArc,innerRadiusArc,
-        function(d,i){
+      createChart(
+        svg,
+        data,
+        pie,
+        outerRadiusArc,
+        innerRadiusArc,
+        function (d, i) {
           return chartColour(key(d.data));
-      },'path1');
+        },
+        "path1",
+      );
 
-      createChart(svg,data,pie,outerRadiusArcShadow,innerRadiusArcShadow,
-          function(d,i){
-            var c=d3.hsl(chartColour(key(d.data)));
-            return d3.hsl((c.h+5), (c.s -.07), (c.l -.15));
-      },'path2');
+      createChart(
+        svg,
+        data,
+        pie,
+        outerRadiusArcShadow,
+        innerRadiusArcShadow,
+        function (d, i) {
+          var c = d3.hsl(chartColour(key(d.data)));
+          return d3.hsl(c.h + 5, c.s - 0.07, c.l - 0.15);
+        },
+        "path2",
+      );
       //
-      svg.append("g")
+      svg
+        .append("g")
         .attr("font-family", "sans-serif")
         .attr("font-size", 12)
         .attr("text-anchor", "middle")
-      .selectAll()
-      .data(pie(data))
-      .join("text")
+        .selectAll()
+        .data(pie(data))
+        .join("text")
         .attr("class", "donut-text")
-        .attr("transform", d => `translate(${arc.centroid(d)})`)
-        .call(text => text.append("tspan")
-          .attr("y", "-0.4em")
-          .attr("font-weight", "bold")
-          .attr("fill-opacity", 0)
-          .text(d => key(d.data))
-          .transition().duration(1000)
-            .attr("fill-opacity", 1)
+        .attr("transform", (d) => `translate(${arc.centroid(d)})`)
+        .call((text) =>
+          text
+            .append("tspan")
+            .attr("y", "-0.4em")
+            .attr("font-weight", "bold")
+            .attr("fill-opacity", 0)
+            .text((d) => key(d.data))
+            .transition()
+            .duration(1000)
+            .attr("fill-opacity", 1),
         )
-        .call(text => 
-          text.filter(d => 
-            (d.endAngle - d.startAngle) > 0.25).append("tspan")
-          .attr("x", 0)
-          .attr("y", "0.7em")
-          .attr("fill-opacity", 0)
-          .text(d => valtext(d.data).toLocaleString("en-US"))
-          .transition().duration(1000)
-            .attr("fill-opacity", 1)
-        )
+        .call((text) =>
+          text
+            .filter((d) => d.endAngle - d.startAngle > 0.25)
+            .append("tspan")
+            .attr("x", 0)
+            .attr("y", "0.7em")
+            .attr("fill-opacity", 0)
+            .text((d) => valtext(d.data).toLocaleString("en-US"))
+            .transition()
+            .duration(1000)
+            .attr("fill-opacity", 1),
+        );
       //
-      svg.append('text')
+      svg
+        .append("text")
         .text(centerText)
         .attr("text-anchor", "middle")
         .attr("fill", "#929DAF")
         .attr("font-size", "15px");
       //
       //
-      updateData = function(){
-        createChart(svg,data,pie,outerRadiusArc,innerRadiusArc,
-          function(d,i){
+      updateData = function () {
+        createChart(
+          svg,
+          data,
+          pie,
+          outerRadiusArc,
+          innerRadiusArc,
+          function (d, i) {
             return chartColour(key(d.data));
-        },'path1');
+          },
+          "path1",
+        );
 
-        createChart(svg,data,pie,outerRadiusArcShadow,innerRadiusArcShadow,
-            function(d,i){
-              var c=d3.hsl(chartColour(key(d.data)));
-              return d3.hsl((c.h+5), (c.s -.07), (c.l -.15));
-        },'path2');
+        createChart(
+          svg,
+          data,
+          pie,
+          outerRadiusArcShadow,
+          innerRadiusArcShadow,
+          function (d, i) {
+            var c = d3.hsl(chartColour(key(d.data)));
+            return d3.hsl(c.h + 5, c.s - 0.07, c.l - 0.15);
+          },
+          "path2",
+        );
         //
         svg.selectAll("text.donut-text").remove();
-        svg.append("g")
-            .attr("font-family", "sans-serif")
-            .attr("font-size", 12)
-            .attr("text-anchor", "middle")
+        svg
+          .append("g")
+          .attr("font-family", "sans-serif")
+          .attr("font-size", 12)
+          .attr("text-anchor", "middle")
           .selectAll()
           .data(pie(data))
           .join("text")
-            .attr("class", "donut-text")
-            .attr("transform", d => `translate(${arc.centroid(d)})`)
-            .call(text => text.append("tspan")
+          .attr("class", "donut-text")
+          .attr("transform", (d) => `translate(${arc.centroid(d)})`)
+          .call((text) =>
+            text
+              .append("tspan")
               .attr("y", "-0.4em")
               .attr("font-weight", "bold")
               .attr("fill-opacity", 0)
-              .text(d => key(d.data))
-              .transition().duration(1000)
-                .attr("fill-opacity", 1)
-            )
-            .call(text => 
-              text.filter(d => 
-                (d.endAngle - d.startAngle) > 0.25).append("tspan")
+              .text((d) => key(d.data))
+              .transition()
+              .duration(1000)
+              .attr("fill-opacity", 1),
+          )
+          .call((text) =>
+            text
+              .filter((d) => d.endAngle - d.startAngle > 0.25)
+              .append("tspan")
               .attr("class", "donut-text")
               .attr("x", 0)
               .attr("y", "0.7em")
               .attr("fill-opacity", 0)
-              .text(d => valtext(d.data).toLocaleString("en-US"))
-              .transition().duration(1000)
-                .attr("fill-opacity", 1)
-            )
+              .text((d) => valtext(d.data).toLocaleString("en-US"))
+              .transition()
+              .duration(1000)
+              .attr("fill-opacity", 1),
+          );
       };
-      updateVal = function(){
-
-      };
-      updateValText = function(){
-
-      };
-      updateKey = function(){
-
-      };
-      updateWidth = function(){
-
-      };
-      updateHeight = function(){
-
-      };
-      updateCenterText = function(){
-
-      };
-
+      updateVal = function () {};
+      updateValText = function () {};
+      updateKey = function () {};
+      updateWidth = function () {};
+      updateHeight = function () {};
+      updateCenterText = function () {};
     });
   }
   //
-  chart.SvgID = function(val){
-    if(!arguments.length) return svg_id;
+  chart.SvgID = function (val) {
+    if (!arguments.length) return svg_id;
     svg_id = val;
     return chart;
-  }
-  chart.Data = function(val) {
-    if(!arguments.length) return data;
+  };
+  chart.Data = function (val) {
+    if (!arguments.length) return data;
     data = val;
-    if (typeof updateData === 'function') updateData();
+    if (typeof updateData === "function") updateData();
     return chart;
-  }
+  };
   //
-  chart.Val = function(v) {
-    if(!arguments.length) return val;
+  chart.Val = function (v) {
+    if (!arguments.length) return val;
     val = v;
-    if (typeof updateVal === 'function') updateVal();
+    if (typeof updateVal === "function") updateVal();
     return chart;
-  }
+  };
   //
-  chart.ValText = function(val){
-    if(!arguments.length) return valtext;
+  chart.ValText = function (val) {
+    if (!arguments.length) return valtext;
     valtext = val;
-    if (typeof updateValText === 'function') updateValText();
+    if (typeof updateValText === "function") updateValText();
     return chart;
-  }
+  };
   //
-  chart.Key = function(val) {
-    if(!arguments.length) return key;
+  chart.Key = function (val) {
+    if (!arguments.length) return key;
     key = val;
-    if (typeof updateKey === 'function') updateKey();
+    if (typeof updateKey === "function") updateKey();
     return chart;
-  }
+  };
   //
-  chart.Width = function(val) {
-    if(!arguments.length) return width;
+  chart.Width = function (val) {
+    if (!arguments.length) return width;
     width = val;
     dims.w = val;
-    if (typeof updateWidth === 'function') updateWidth();
+    if (typeof updateWidth === "function") updateWidth();
     return chart;
-  }
+  };
   //
-  chart.Height = function(val){
-    if(!arguments.length) return width;
+  chart.Height = function (val) {
+    if (!arguments.length) return width;
     height = val;
     dims.h = val;
-    if (typeof updateHeight === 'function') updateWidth();
+    if (typeof updateHeight === "function") updateWidth();
     return chart;
-  }
+  };
   //
-  chart.MarginTop = function(val){
-    if(!arguments.length) return dims.mT;
+  chart.MarginTop = function (val) {
+    if (!arguments.length) return dims.mT;
     marginTop = val;
-    dims.mT = val
-    if (typeof updateMarginTop === 'function') updateMarginTop();
+    dims.mT = val;
+    if (typeof updateMarginTop === "function") updateMarginTop();
     return chart;
-  }
+  };
   //
-  chart.MarginRight = function(val){
-    if(!arguments.length) return dims.mR;
+  chart.MarginRight = function (val) {
+    if (!arguments.length) return dims.mR;
     marginRight = val;
-    dims.mR = val
-    if (typeof updateMarginRight === 'function') updateMarginRight();
+    dims.mR = val;
+    if (typeof updateMarginRight === "function") updateMarginRight();
     return chart;
-  }
+  };
   //
-  chart.MarginBottom = function(val){
-    if(!arguments.length) return dims.mB;
+  chart.MarginBottom = function (val) {
+    if (!arguments.length) return dims.mB;
     marginTop = val;
-    dims.mB = val
-    if (typeof updateMarginBottom === 'function') updateMarginBottom();
+    dims.mB = val;
+    if (typeof updateMarginBottom === "function") updateMarginBottom();
     return chart;
-  }
-  chart.MarginLeft = function(val){
-    if(!arguments.length) return dims.mL;
+  };
+  chart.MarginLeft = function (val) {
+    if (!arguments.length) return dims.mL;
     marginTop = val;
-    dims.mL = val
-    if (typeof updateMarginLeft === 'function') updateMarginLeft();
+    dims.mL = val;
+    if (typeof updateMarginLeft === "function") updateMarginLeft();
     return chart;
-  }
+  };
   //
-  chart.CenterText = function(val) {
-    if(!arguments.length) return centerText;
+  chart.CenterText = function (val) {
+    if (!arguments.length) return centerText;
     centerText = val;
-    if (typeof updateCenterText === 'function') updateCenterText();
+    if (typeof updateCenterText === "function") updateCenterText();
     return chart;
-  }
+  };
   //
-  chart.OuterRadiusArc = function(val) {
-    if(!arguments.length) return outerRadiusArc;
+  chart.OuterRadiusArc = function (val) {
+    if (!arguments.length) return outerRadiusArc;
     outerRadiusArc = val;
-    if (typeof updateOuterRadiusArc === 'function') updateOuterRadiusArc();
+    if (typeof updateOuterRadiusArc === "function") updateOuterRadiusArc();
     return chart;
-  }
+  };
   //
-  chart.InnerRadiusArc = function(val){
-    if(!arguments.length) return innerRadiusArc;
+  chart.InnerRadiusArc = function (val) {
+    if (!arguments.length) return innerRadiusArc;
     innerRadiusArc = val;
-    if (typeof updateInnerRadiusArc === 'function') updateInnerRadiusArc();
+    if (typeof updateInnerRadiusArc === "function") updateInnerRadiusArc();
     return chart;
-  }
+  };
   //
-  chart.ColourDomain = function(val){
-    if(!arguments.length) return colourDomain;
+  chart.ColourDomain = function (val) {
+    if (!arguments.length) return colourDomain;
     colourDomain = val;
-    if (typeof updateColourDomain === 'function') updateColourDomain();
+    if (typeof updateColourDomain === "function") updateColourDomain();
     return chart;
-  }
+  };
   //
-  chart.ColourRange = function(val){
-    if(!arguments.length) return colourRange;
+  chart.ColourRange = function (val) {
+    if (!arguments.length) return colourRange;
     colourRange = val;
-    if (typeof updateColourRange === 'function') updateColourRange();
+    if (typeof updateColourRange === "function") updateColourRange();
     return chart;
-  }
+  };
   //
   return chart;
 }
 //
 //
 function LineLinearSpark() {
-  var data = [], svg_id,
-    linear_domain, val_domain,
-    linear_accessor, val_accessor,
-    width = 800, height = 600,
-    marginLeft = 0, marginRight = 0, marginBottom = 0, marginTop = 0,
+  var data = [],
+    svg_id,
+    linear_domain,
+    val_domain,
+    linear_accessor,
+    val_accessor,
+    width = 800,
+    height = 600,
+    marginLeft = 0,
+    marginRight = 0,
+    marginBottom = 0,
+    marginTop = 0,
     dims = {
       w: width,
       h: height,
       mR: marginRight,
       mL: marginLeft,
       mT: marginTop,
-      mB: marginBottom
+      mB: marginBottom,
     },
     chartColour,
     on_hover,
-    with_hover = false
-  ;
+    with_hover = false;
   //
-  var updateData
-  ;
+  var updateData;
   //
   //
   function chart(selection) {
-    selection.each(function(){
+    selection.each(function () {
       //
-      var boundedWidth = dims.w - dims.mR - dims.mL, 
-        boundedHeight = dims.h - dims.mT - dims.mB
-      ;
+      var boundedWidth = dims.w - dims.mR - dims.mL,
+        boundedHeight = dims.h - dims.mT - dims.mB;
       //
       var svg = getBaseSVG(this, svg_id, dims, responsivefy);
       //
-      var linear = d3.scaleTime().
-        domain(linear_domain).
-        range([0, boundedWidth]);
+      var linear = d3
+        .scaleTime()
+        .domain(linear_domain)
+        .range([0, boundedWidth]);
       //
-      var val = d3.scaleLinear().
-        domain(val_domain).
-        range([boundedHeight, 0]);
+      var val = d3.scaleLinear().domain(val_domain).range([boundedHeight, 0]);
       //
-      var line = d3.line()
+      var line = d3
+        .line()
         .x((d, i) => linear(linear_accessor(d)))
-        .y(d => val(val_accessor(d)));
+        .y((d) => val(val_accessor(d)));
       //
-      svg.append('path')
+      svg
+        .append("path")
         .datum(data)
-        .attr('fill', 'none')
-        .attr('stroke', chartColour)
-        .attr('stroke-width', 1)
+        .attr("fill", "none")
+        .attr("stroke", chartColour)
+        .attr("stroke-width", 1)
         .attr("shape-rendering", "geometricPrecision")
-        .attr('d', line);
-      // 
+        .attr("d", line);
+      //
       var circle = svg
         .datum(data)
-        .append('circle')
-          .attr("id", (d,i) => "legend"+svg_id)
-          .attr("class", "tooltip_circle"+svg_id)
-          .style("fill", "lightgrey")
-          .style("pointer-events", "none")
-          .style("opacity", 0)
-          .attr("stroke", "lightgrey")
-          .attr('r', 2);
+        .append("circle")
+        .attr("id", (d, i) => "legend" + svg_id)
+        .attr("class", "tooltip_circle" + svg_id)
+        .style("fill", "lightgrey")
+        .style("pointer-events", "none")
+        .style("opacity", 0)
+        .attr("stroke", "lightgrey")
+        .attr("r", 2);
       //
-      var bar = svg.append("line")
+      var bar = svg
+        .append("line")
         .attr("style", "stroke:#999; stroke-width:0.5; stroke-dasharray: 5 3;")
         .style("opacity", 0)
         .attr("y2", boundedHeight)
-        .attr("x1", d=> 0)
-        .attr("x2",  d=> 0);
+        .attr("x1", (d) => 0)
+        .attr("x2", (d) => 0);
       //
-      var top_left_text = svg.append("text")
+      var top_left_text = svg
+        .append("text")
         .style("opacity", 0)
         .attr("x", 0)
         .attr("y", 0)
         .text("0")
         .style("font-size", "2rem")
-        .attr("alignment-baseline","start")
+        .attr("alignment-baseline", "start");
       //
-      var right_text_marker = svg.append("text")
+      var right_text_marker = svg
+        .append("text")
         .attr("fill", "#999")
-        .attr("x", boundedWidth+5)
+        .attr("x", boundedWidth + 5)
         .attr("y", val(val_accessor(data[0])))
         .text(val_accessor(data[0]).toFixed(0));
       //
       //
-      var bisect = d3.bisector(d=>linear_accessor(d));
+      var bisect = d3.bisector((d) => linear_accessor(d));
       //
       function makeHoverLook(date) {
-        date = new Date(date.toJSDate().setUTCHours(0,0,0,0));
-        var ii = data.reduce(function(acc, c, i, arr){
-          if(c[0].getTime() === date.getTime()) {
-            acc.y = c[1].length;
-            acc.date = c[0];
-          }
-          return acc;
-        }, {date:date, y:0})
-        ;
-        circle.
-          attr("cx", linear(date)).
-          attr("cy", val(ii.y)).
-          style("opacity", 1)
-        ;
+        date = new Date(date.toJSDate().setUTCHours(0, 0, 0, 0));
+        var ii = data.reduce(
+          function (acc, c, i, arr) {
+            if (c[0].getTime() === date.getTime()) {
+              acc.y = c[1].length;
+              acc.date = c[0];
+            }
+            return acc;
+          },
+          { date: date, y: 0 },
+        );
+        circle
+          .attr("cx", linear(date))
+          .attr("cy", val(ii.y))
+          .style("opacity", 1);
         //
-        bar.
-          attr("style", "stroke:#999; stroke-width:0.5; stroke-dasharray: 5 3;").
-          style("opacity", 1).
-          attr("y2", boundedHeight).
-          attr("x1", d=> linear(date)).
-          attr("x2",  d=> linear(date))
-        ;
+        bar
+          .attr(
+            "style",
+            "stroke:#999; stroke-width:0.5; stroke-dasharray: 5 3;",
+          )
+          .style("opacity", 1)
+          .attr("y2", boundedHeight)
+          .attr("x1", (d) => linear(date))
+          .attr("x2", (d) => linear(date));
         //
-        top_left_text.
-          style("opacity", 1).
-          text(ii.y.toFixed(0)).
-          attr("fill", chartColour)
-        ;
+        top_left_text
+          .style("opacity", 1)
+          .text(ii.y.toFixed(0))
+          .attr("fill", chartColour);
       }
-      function clearHoverLook(){
-        circle.
-          style("opacity", 0);
-        bar.
-          style("opacity", 0);
-        top_left_text.
-          style("opacity", 0);
+      function clearHoverLook() {
+        circle.style("opacity", 0);
+        bar.style("opacity", 0);
+        top_left_text.style("opacity", 0);
       }
       //
-      if(typeof with_hover === 'object'){
+      if (typeof with_hover === "object") {
         //
-        svg.append('rect')
+        svg
+          .append("rect")
           .style("fill", "none")
           .style("z-index", 1001)
           .style("pointer-events", "all")
-          .attr('width', boundedWidth+6)
-          .attr('height', boundedHeight)
+          .attr("width", boundedWidth + 6)
+          .attr("height", boundedHeight)
           .attr("transform", "translate(0,0)")
-            .on('mouseover', mouseover)
-            .on('mousemove', mousemove)
-            .on('mouseout', mouseout);
+          .on("mouseover", mouseover)
+          .on("mousemove", mousemove)
+          .on("mouseout", mouseout);
 
         //
-        function mouseover(e){
-
-        }
+        function mouseover(e) {}
         //
-        function mousemove(e){
+        function mousemove(e) {
           //
-          var pos = d3.pointer(e), 
+          var pos = d3.pointer(e),
             x0 = DateTime.fromJSDate(linear.invert(pos[0]));
           //
           var hover = with_hover;
@@ -1453,14 +1440,14 @@ function LineLinearSpark() {
           document.body.dispatchEvent(hover);
         }
         //
-        function mouseout(e){
+        function mouseout(e) {
           var hover = with_hover;
           hover.detail.enter = false;
           document.body.dispatchEvent(hover);
         }
         //
-        function selfEvent(e){
-          if(e.detail.enter){
+        function selfEvent(e) {
+          if (e.detail.enter) {
             makeHoverLook(e.detail.date);
           } else {
             clearHoverLook();
@@ -1468,18 +1455,17 @@ function LineLinearSpark() {
         }
         try {
           document.body.removeEventListener(with_hover.type, selfEvent);
-        } catch(err) {
-          console.error("Event Listener Error",err);
+        } catch (err) {
+          console.error("Event Listener Error", err);
         } finally {
           addEventListener(document.body, with_hover.type, selfEvent);
         }
-
       }
       //
-      if(typeof on_hover === 'string'){
+      if (typeof on_hover === "string") {
         //
         function hoverFn(e) {
-          if(e.detail.enter){
+          if (e.detail.enter) {
             var date = e.detail.date;
             makeHoverLook(date);
             //
@@ -1490,341 +1476,352 @@ function LineLinearSpark() {
         //
         try {
           document.body.removeEventListener(on_hover, hoverFn);
-        } catch(err) {
-          console.error("Event Listener Error",err);
+        } catch (err) {
+          console.error("Event Listener Error", err);
         } finally {
           addEventListener(document.body, on_hover, hoverFn);
         }
       }
       //
-      updateData = function(){
-
-      }
+      updateData = function () {};
     });
   }
   //
-  chart.Data = function(val){
-    if(!arguments.length) return data;
+  chart.Data = function (val) {
+    if (!arguments.length) return data;
     data = val;
-    if (typeof updateData === 'function') updateData();
+    if (typeof updateData === "function") updateData();
     return chart;
-  }
+  };
   //
-  chart.SvgID = function(val){
-    if(!arguments.length) return svg_id;
+  chart.SvgID = function (val) {
+    if (!arguments.length) return svg_id;
     svg_id = val;
     return chart;
-  }
+  };
   //
-  chart.OnHover = function(val){
-    if(!arguments.length) return on_hover;
+  chart.OnHover = function (val) {
+    if (!arguments.length) return on_hover;
     on_hover = val;
     return chart;
-  }
+  };
   //
-  chart.WithHover = function(val){
-    if(!arguments.length) return with_hover;
+  chart.WithHover = function (val) {
+    if (!arguments.length) return with_hover;
     with_hover = val;
     return chart;
-  }
+  };
   //
-  chart.ChartColour = function(val){
-    if(!arguments.length) return chartColour;
+  chart.ChartColour = function (val) {
+    if (!arguments.length) return chartColour;
     chartColour = val;
-    if(typeof updateChartColour === 'function') updateChartColour();
+    if (typeof updateChartColour === "function") updateChartColour();
     return chart;
-  }
+  };
   //
-  chart.DomainLinear = function(val){
-    if(!arguments.length) return linear_domain;
+  chart.DomainLinear = function (val) {
+    if (!arguments.length) return linear_domain;
     linear_domain = val;
-    if (typeof updateDomainLinear === 'function') updateDomainLinear();
+    if (typeof updateDomainLinear === "function") updateDomainLinear();
     return chart;
-  } 
+  };
   //
-  chart.LinearAccessor = function(val){
-    if(!arguments.length) return linear_accessor;
+  chart.LinearAccessor = function (val) {
+    if (!arguments.length) return linear_accessor;
     linear_accessor = val;
-    if (typeof updateLinearAccessor === 'function') updateLinearAccessor();
+    if (typeof updateLinearAccessor === "function") updateLinearAccessor();
     return chart;
-  }
+  };
   //
-  chart.DomainVal = function(val){
-    if(!arguments.length) return val_domain;
+  chart.DomainVal = function (val) {
+    if (!arguments.length) return val_domain;
     val_domain = val;
-    if (typeof updateDomainVal === 'function') updateDomainVal();
+    if (typeof updateDomainVal === "function") updateDomainVal();
     return chart;
-  }
+  };
   //
-  chart.ValAccessor = function(val){
-    if(!arguments.length) return val_accessor;
+  chart.ValAccessor = function (val) {
+    if (!arguments.length) return val_accessor;
     val_accessor = val;
-    if (typeof updateValAccessor === 'function') updateValAccessor();
+    if (typeof updateValAccessor === "function") updateValAccessor();
     return chart;
-  }
+  };
   //
-  chart.ColourFnZ = function(val){
-    if(!arguments.length) return chartColour;
+  chart.ColourFnZ = function (val) {
+    if (!arguments.length) return chartColour;
     chartColour = val;
-    if (typeof updateColourFnZ === 'function') updateColourFnZ();
+    if (typeof updateColourFnZ === "function") updateColourFnZ();
     return chart;
-  }
+  };
   //
-  chart.Width = function(val) {
-    if(!arguments.length) return width;
+  chart.Width = function (val) {
+    if (!arguments.length) return width;
     width = val;
     dims.w = val;
-    if (typeof updateWidth === 'function') updateWidth();
+    if (typeof updateWidth === "function") updateWidth();
     return chart;
-  }
+  };
   //
-  chart.Height = function(val){
-    if(!arguments.length) return width;
+  chart.Height = function (val) {
+    if (!arguments.length) return width;
     height = val;
     dims.h = val;
-    if (typeof updateHeight === 'function') updateWidth();
+    if (typeof updateHeight === "function") updateWidth();
     return chart;
-  }
+  };
   //
-  chart.MarginTop = function(val){
-    if(!arguments.length) return dims.mT;
+  chart.MarginTop = function (val) {
+    if (!arguments.length) return dims.mT;
     marginTop = val;
-    dims.mT = val
-    if (typeof updateMarginTop === 'function') updateMarginTop();
+    dims.mT = val;
+    if (typeof updateMarginTop === "function") updateMarginTop();
     return chart;
-  }
+  };
   //
-  chart.MarginRight = function(val){
-    if(!arguments.length) return dims.mR;
+  chart.MarginRight = function (val) {
+    if (!arguments.length) return dims.mR;
     marginRight = val;
-    dims.mR = val
-    if (typeof updateMarginRight === 'function') updateMarginRight();
+    dims.mR = val;
+    if (typeof updateMarginRight === "function") updateMarginRight();
     return chart;
-  }
+  };
   //
-  chart.MarginBottom = function(val){
-    if(!arguments.length) return dims.mB;
+  chart.MarginBottom = function (val) {
+    if (!arguments.length) return dims.mB;
     marginTop = val;
-    dims.mB = val
-    if (typeof updateMarginBottom === 'function') updateMarginBottom();
+    dims.mB = val;
+    if (typeof updateMarginBottom === "function") updateMarginBottom();
     return chart;
-  }
-  chart.MarginLeft = function(val){
-    if(!arguments.length) return dims.mL;
+  };
+  chart.MarginLeft = function (val) {
+    if (!arguments.length) return dims.mL;
     marginTop = val;
-    dims.mL = val
-    if (typeof updateMarginLeft === 'function') updateMarginLeft();
+    dims.mL = val;
+    if (typeof updateMarginLeft === "function") updateMarginLeft();
     return chart;
-  }
+  };
   //
   return chart;
 }
 //
 //
-function LineTimeChartSimple(){
+function LineTimeChartSimple() {
   var data = [],
     svg_id = "",
-    time, linear,
+    time,
+    linear,
     time_domain,
     linear_domain,
-    width = 800, height = 600,
-    marginLeft = 0, marginRight = 0, marginBottom = 0, marginTop = 0,
+    width = 800,
+    height = 600,
+    marginLeft = 0,
+    marginRight = 0,
+    marginBottom = 0,
+    marginTop = 0,
     dims = {
       w: width,
       h: height,
       mR: marginRight,
       mL: marginLeft,
       mT: marginTop,
-      mB: marginBottom
+      mB: marginBottom,
     },
     colour = d3.scaleOrdinal(),
-    colourDomain = ["A","B"],
+    colourDomain = ["A", "B"],
     colourRange = d3.schemeTableau10,
     strokeColour = "green",
-    strokeWidth = 1.5
-  ;
+    strokeWidth = 1.5;
   //
   var updateData,
     updateWidth,
     updateHeight,
-    updateMarginLeft, 
-    updateMarginRight, 
-    updateMarginBottom, 
+    updateMarginLeft,
+    updateMarginRight,
+    updateMarginBottom,
     updateMarginTop,
     updateStrokeColour,
     updateStrokeWidth,
     updateTime,
     updateLinear,
     updateDomainTime,
-    updateDomainLinear
-  ;
-  // 
-  function chart(selection){
-    selection.each(function(){
+    updateDomainLinear;
+  //
+  function chart(selection) {
+    selection.each(function () {
       //
-      var boundedWidth = dims.w - dims.mR - dims.mL, 
-        boundedHeight = dims.h - dims.mT - dims.mB
-      ;
+      var boundedWidth = dims.w - dims.mR - dims.mL,
+        boundedHeight = dims.h - dims.mT - dims.mB;
       //
-      var chartColour = colour
-        .domain(colourDomain)
-        .range(colourRange);
+      var chartColour = colour.domain(colourDomain).range(colourRange);
       //
-      var val_time = d3.scaleTime()
+      var val_time = d3
+        .scaleTime()
         .domain(time_domain)
-        .range([0,boundedWidth]);
+        .range([0, boundedWidth]);
       //
-      var val_linear = d3.scaleLinear()
+      var val_linear = d3
+        .scaleLinear()
         .domain(linear_domain)
         .range([boundedHeight, 0]);
       //
       var svg = getBaseSVG(this, svg_id, dims, responsivefy);
       //
-      svg.append("g")
-        .call(d3.axisLeft(val_linear).ticks(5));
+      svg.append("g").call(d3.axisLeft(val_linear).ticks(5));
       //
-      svg.append("g")
+      svg
+        .append("g")
         .attr("transform", `translate(0,${boundedHeight})`)
         .call(d3.axisBottom(val_time).ticks(5));
       //
-      var xAxisGrid = d3.axisBottom(val_time).
-        tickSize(-boundedHeight).
-        tickFormat('').
-        ticks(5);
-      var yAxisGrid = d3.axisLeft(val_linear).
-        tickSize(-boundedWidth).
-        tickFormat('').
-        ticks(5);
-      svg.append('g')
-        .attr('class', 'x axis-grid')
+      var xAxisGrid = d3
+        .axisBottom(val_time)
+        .tickSize(-boundedHeight)
+        .tickFormat("")
+        .ticks(5);
+      var yAxisGrid = d3
+        .axisLeft(val_linear)
+        .tickSize(-boundedWidth)
+        .tickFormat("")
+        .ticks(5);
+      svg
+        .append("g")
+        .attr("class", "x axis-grid")
         .attr("style", "opacity:20%;")
-        .attr('transform', `translate(0,${boundedHeight})`)
+        .attr("transform", `translate(0,${boundedHeight})`)
         .call(xAxisGrid);
-      svg.append('g')
-        .attr('class', 'y axis-grid')
+      svg
+        .append("g")
+        .attr("class", "y axis-grid")
         .attr("style", "opacity:20%;")
         .call(yAxisGrid);
       //
       let pathLength;
-      svg.append("path")
+      svg
+        .append("path")
         .datum(data)
         .attr("fill", "none")
         .attr("stroke", strokeColour)
         .attr("stroke-width", strokeWidth)
-        .attr("d", d3.line()
-          .x(function(d) { return val_time(time(d));})
-          .y(function(d) { return val_linear(linear(d));})
+        .attr(
+          "d",
+          d3
+            .line()
+            .x(function (d) {
+              return val_time(time(d));
+            })
+            .y(function (d) {
+              return val_linear(linear(d));
+            }),
         )
-       .attr("stroke-dasharray", function() {
-          return pathLength = this.getTotalLength();
+        .attr("stroke-dasharray", function () {
+          return (pathLength = this.getTotalLength());
         })
         .attr("stroke-dashoffset", pathLength)
         .transition()
-          .duration(1000)
+        .duration(1000)
         .on("start", function repeat() {
-          d3.active(this)
-            .attr("stroke-dashoffset", 0)
+          d3.active(this).attr("stroke-dashoffset", 0);
         });
-    }); 
+    });
   }
   //
   //
-  chart.Data = function(val){
-    if(!arguments.length) return data;
+  chart.Data = function (val) {
+    if (!arguments.length) return data;
     data = val;
-    if (typeof updateData === 'function') updateData();
+    if (typeof updateData === "function") updateData();
     return chart;
-  }
+  };
   //
-  chart.Height = function(val){
-    if(!arguments.length) return height;
+  chart.Height = function (val) {
+    if (!arguments.length) return height;
     height = val;
     dims.h = val;
-    if(typeof updateHeight === 'function') updateHeight();
+    if (typeof updateHeight === "function") updateHeight();
     return chart;
-  }
+  };
   //
-  chart.Width = function(val) {
-    if(!arguments.length) return width;
+  chart.Width = function (val) {
+    if (!arguments.length) return width;
     width = val;
     dims.w = val;
-    if(typeof updateWidth === 'function') updateWidth();
+    if (typeof updateWidth === "function") updateWidth();
     return chart;
-  }
+  };
   //
-  chart.MarginLeft = function(val){
-    if(!arguments.length) return marginLeft;
+  chart.MarginLeft = function (val) {
+    if (!arguments.length) return marginLeft;
     marginLeft = val;
     dims.mL = marginLeft;
-    if (typeof updateMarginLeft === 'function') updateMarginLeft();
+    if (typeof updateMarginLeft === "function") updateMarginLeft();
     return chart;
-  }
+  };
   //
-  chart.MarginRight = function(val){
-    if(!arguments.length) return marginRight;
+  chart.MarginRight = function (val) {
+    if (!arguments.length) return marginRight;
     marginRight = val;
     dims.mR = marginRight;
-    if (typeof updateMarginRight === 'function') updateMarginRight();
+    if (typeof updateMarginRight === "function") updateMarginRight();
     return chart;
-  }
+  };
   //
-  chart.MarginTop = function(val){
-    if(!arguments.length) return marginTop;
+  chart.MarginTop = function (val) {
+    if (!arguments.length) return marginTop;
     marginTop = val;
     dims.mT = marginTop;
-    if (typeof updateMarginTop === 'function') updateMarginTop();
+    if (typeof updateMarginTop === "function") updateMarginTop();
     return chart;
-  }
+  };
   //
-  chart.MarginBottom = function(val){
-    if(!arguments.length) return marginBottom;
+  chart.MarginBottom = function (val) {
+    if (!arguments.length) return marginBottom;
     marginBottom = val;
     dims.mB = marginBottom;
-    if (typeof updateMarginBottom === 'function') updateMarginBottom();
+    if (typeof updateMarginBottom === "function") updateMarginBottom();
     return chart;
-  }
+  };
   //
-  chart.StrokeColour = function(val) {
-    if(!arguments.length) return strokeColour;
+  chart.StrokeColour = function (val) {
+    if (!arguments.length) return strokeColour;
     strokeColour = val;
-    if(typeof updateStrokeColour === 'function') updateStrokeColour();
+    if (typeof updateStrokeColour === "function") updateStrokeColour();
     return chart;
-  }
+  };
   //
-  chart.StrokeWidth = function(val) {
-    if(!arguments.length) return strokeWidth;
+  chart.StrokeWidth = function (val) {
+    if (!arguments.length) return strokeWidth;
     strokeWidth = val;
-    if(typeof updateStrokeWidth === 'function') updateStrokeWidth();
+    if (typeof updateStrokeWidth === "function") updateStrokeWidth();
     return chart;
-  }
+  };
   //
-  chart.Time = function(val) {
-    if(!arguments.length) return time;
+  chart.Time = function (val) {
+    if (!arguments.length) return time;
     time = val;
-    if(typeof updateTime === 'function') updateTime();
+    if (typeof updateTime === "function") updateTime();
     return chart;
-  }
+  };
   //
-  chart.Linear = function(_) {
-    if(!arguments.length) return linear;
+  chart.Linear = function (_) {
+    if (!arguments.length) return linear;
     linear = _;
-    if(typeof updateLinear === 'function') updateLinear();
+    if (typeof updateLinear === "function") updateLinear();
     return chart;
-  }
+  };
   //
-  chart.DomainLinear = function(val){
-    if(!arguments.length) return linear_domain;
+  chart.DomainLinear = function (val) {
+    if (!arguments.length) return linear_domain;
     linear_domain = val;
-    if(typeof updateDomainLinear === 'function') updateDomainLinear();
+    if (typeof updateDomainLinear === "function") updateDomainLinear();
     return chart;
-  }
+  };
   //
-  chart.DomainTime = function(val) {
-    if(!arguments.length) return time_domain;
+  chart.DomainTime = function (val) {
+    if (!arguments.length) return time_domain;
     time_domain = val;
-    if(typeof updateTimeDomain === 'function') updateTimeDomain();
+    if (typeof updateTimeDomain === "function") updateTimeDomain();
     return chart;
-  }
+  };
   //
   return chart;
 }
@@ -1835,30 +1832,33 @@ function MultiLineTimeChartSimple() {
     svg_id = "",
     time,
     lineKeys,
-    width = 800, height = 600,
-    marginLeft = 0, marginRight = 0, marginBottom = 0, marginTop = 0,
+    width = 800,
+    height = 600,
+    marginLeft = 0,
+    marginRight = 0,
+    marginBottom = 0,
+    marginTop = 0,
     dims = {
       w: width,
       h: height,
       mR: marginRight,
       mL: marginLeft,
       mT: marginTop,
-      mB: marginBottom
+      mB: marginBottom,
     },
     colour = d3.scaleOrdinal(),
-    colourDomain = ["A","B","C"],
+    colourDomain = ["A", "B", "C"],
     colourRange = d3.schemeTableau10,
     withLegend = {},
     val_domain,
     time_domain,
     strokeWidth = 1.5,
-    date_options = { 
-      weekday: 'short', 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
-    }
-  ;
+    date_options = {
+      weekday: "short",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    };
   //
   var updateData,
     updateTime,
@@ -1867,52 +1867,54 @@ function MultiLineTimeChartSimple() {
     updateColourDomain,
     updateColourRange,
     updateColour,
-    updateDateOptions
-  ;
+    updateDateOptions;
   //
-  function chart(selection){
-    selection.each(function(){
+  function chart(selection) {
+    selection.each(function () {
       //
-      var boundedWidth = dims.w - dims.mR - dims.mL, 
-        boundedHeight = dims.h - dims.mT - dims.mB
-      ;
+      var boundedWidth = dims.w - dims.mR - dims.mL,
+        boundedHeight = dims.h - dims.mT - dims.mB;
       //
-      var chartColour = colour
-        .domain(colourDomain)
-        .range(colourRange);
+      var chartColour = colour.domain(colourDomain).range(colourRange);
       //
       var svg = getBaseSVG(this, svg_id, dims, responsivefy);
       //
-      const val_linear = d3.scaleLinear()
+      const val_linear = d3
+        .scaleLinear()
         .domain(val_domain)
-        .range([ boundedHeight, 0 ]);
-        
-      const val_time = d3.scaleTime()
+        .range([boundedHeight, 0]);
+
+      const val_time = d3
+        .scaleTime()
         .domain(time_domain)
-        .range([ 0, boundedWidth ]);
+        .range([0, boundedWidth]);
       //
-      svg.append("g")
+      svg
+        .append("g")
         .attr("transform", `translate(0, ${boundedHeight})`)
         .call(d3.axisBottom(val_time).ticks(5));
       //
-      svg.append("g")
-        .call(d3.axisLeft(val_linear).ticks(8));
+      svg.append("g").call(d3.axisLeft(val_linear).ticks(8));
 
-      const xAxisGrid = d3.axisBottom(val_time)
+      const xAxisGrid = d3
+        .axisBottom(val_time)
         .tickSize(-boundedHeight)
-        .tickFormat('')
+        .tickFormat("")
         .ticks(5);
-      const yAxisGrid = d3.axisLeft(val_linear)
+      const yAxisGrid = d3
+        .axisLeft(val_linear)
         .tickSize(-boundedWidth)
-        .tickFormat('')
+        .tickFormat("")
         .ticks(8);
-      svg.append('g')
-        .attr('class', 'x axis-grid')
+      svg
+        .append("g")
+        .attr("class", "x axis-grid")
         .attr("style", "opacity:20%;")
-        .attr('transform', `translate(0,${boundedHeight})`)
+        .attr("transform", `translate(0,${boundedHeight})`)
         .call(xAxisGrid);
-      svg.append('g')
-        .attr('class', 'y axis-grid')
+      svg
+        .append("g")
+        .attr("class", "y axis-grid")
         .attr("style", "opacity:20%;")
         .call(yAxisGrid);
       //
@@ -1923,135 +1925,154 @@ function MultiLineTimeChartSimple() {
       //    [{key:"c",value:1,date:new Date()},...],
       //    ]
       //
-      var map = d3.map(data, function(a){
-        return lineKeys.map(function(key){
-          return {key:key,value:a[key],date:time(a)};});}),
+      var map = d3.map(data, function (a) {
+          return lineKeys.map(function (key) {
+            return { key: key, value: a[key], date: time(a) };
+          });
+        }),
         trans_data = d3.transpose(map);
       //
-      svg.append("g")
+      svg
+        .append("g")
         .selectAll("path")
         .data(trans_data)
         .join("path")
-          .attr("fill", "none")
-          .attr("stroke", (d) => chartColour(d[0].key))
-          .attr("stroke-width", strokeWidth)
-          .attr("shape-rendering", "geometricPrecision")
-          .attr("d", d3.line()
-            .x(function(d) { return val_time(time(d));})
-            .y(function(d) { return val_linear(d.value);})
-          )
-          .attr("stroke-dasharray", function() {
-            return this.getTotalLength();
-          })
-          .attr("stroke-dashoffset", function(){
-            return this.getTotalLength()
-          })
-          .transition()
-            .duration(1000)
-          .on("start", function repeat() {
-            d3.active(this)
-              .attr("stroke-dashoffset", 0)
-          });
+        .attr("fill", "none")
+        .attr("stroke", (d) => chartColour(d[0].key))
+        .attr("stroke-width", strokeWidth)
+        .attr("shape-rendering", "geometricPrecision")
+        .attr(
+          "d",
+          d3
+            .line()
+            .x(function (d) {
+              return val_time(time(d));
+            })
+            .y(function (d) {
+              return val_linear(d.value);
+            }),
+        )
+        .attr("stroke-dasharray", function () {
+          return this.getTotalLength();
+        })
+        .attr("stroke-dashoffset", function () {
+          return this.getTotalLength();
+        })
+        .transition()
+        .duration(1000)
+        .on("start", function repeat() {
+          d3.active(this).attr("stroke-dashoffset", 0);
+        });
       //
-      var legendItems = Object.keys(withLegend)
-      if(legendItems.length){
-        var map = d3.map(legendItems, function(key){
-          return {key:key,value:withLegend[key]} 
+      var legendItems = Object.keys(withLegend);
+      if (legendItems.length) {
+        var map = d3.map(legendItems, function (key) {
+          return { key: key, value: withLegend[key] };
         });
         //
         var lx = 20;
-        var lxt = lx+15;
+        var lxt = lx + 15;
         var lyi = 30;
         var circle_rad = 6;
-        svg.append("g")
+        svg
+          .append("g")
           .datum(map)
           .selectAll("circle")
-          .data(d=>d)
+          .data((d) => d)
           .join("circle")
-            .attr("cx", lx)
-            .attr("cy", (d,i)=>(i*lyi)+lx)
-            .attr("r", circle_rad)
-            .style("fill", d=>chartColour(d.key))
-        svg.append("g")
+          .attr("cx", lx)
+          .attr("cy", (d, i) => i * lyi + lx)
+          .attr("r", circle_rad)
+          .style("fill", (d) => chartColour(d.key));
+        svg
+          .append("g")
           .datum(map)
           .selectAll("circle")
-          .data(d=>d)
+          .data((d) => d)
           .join("text")
-            .attr("x", lxt)
-            .attr("y", (d,i)=>(i*lyi)+lx)
-            .text(d=>d.value)
-            .style("font-size", "15px")
-            .attr("fill", "lightgrey")
-            .attr("alignment-baseline","middle")
+          .attr("x", lxt)
+          .attr("y", (d, i) => i * lyi + lx)
+          .text((d) => d.value)
+          .style("font-size", "15px")
+          .attr("fill", "lightgrey")
+          .attr("alignment-baseline", "middle");
 
-        var tooltip = d3.select('body')
+        var tooltip = d3
+          .select("body")
           .append("div")
-            .style("position", "absolute")
-            .style("pointer-events", "none")
-            .style("opacity", 0)
-            .style("background-color", "#29384D")
-            .style("border", "solid")
-            .style("border-width", "1px")
-            .style("border-radius", "5px")
-            .style("padding", "10px")
-            .style("z-index", "201");
+          .style("position", "absolute")
+          .style("pointer-events", "none")
+          .style("opacity", 0)
+          .style("background-color", "#29384D")
+          .style("border", "solid")
+          .style("border-width", "1px")
+          .style("border-radius", "5px")
+          .style("padding", "10px")
+          .style("z-index", "201");
 
         var circles = svg
-          .append('g')
-            .attr("class", "tooltip_circles")
+          .append("g")
+          .attr("class", "tooltip_circles")
           .datum(map)
           .selectAll("circle")
-          .data(d=>d)
-          .join('circle')
-            .attr("id", (d) => "legend"+d.key)
-            .style("fill", "lightgrey")
-            .style("pointer-events", "none")
-            .style("opacity", 0)
-            .attr("stroke", "lightgrey")
-            .attr('r', 3);
+          .data((d) => d)
+          .join("circle")
+          .attr("id", (d) => "legend" + d.key)
+          .style("fill", "lightgrey")
+          .style("pointer-events", "none")
+          .style("opacity", 0)
+          .attr("stroke", "lightgrey")
+          .attr("r", 3);
 
-        svg.append('rect')
+        svg
+          .append("rect")
           .style("fill", "none")
           .style("z-index", 1001)
           .style("pointer-events", "all")
-          .attr('width', boundedWidth)
-          .attr('height', boundedHeight)
+          .attr("width", boundedWidth)
+          .attr("height", boundedHeight)
           .attr("transform", "translate(0,0)")
-            .on('mouseover', mouseover)
-            .on('mousemove', mousemove)
-            .on('mouseout', mouseout);
+          .on("mouseover", mouseover)
+          .on("mousemove", mousemove)
+          .on("mouseout", mouseout);
         //
         function mouseover(e) {
           tooltip.style("opacity", 1);
           d3.selectAll("g.tooltip_circles circle").style("opacity", 1);
         }
         //
-        var bisect = d3.bisector(function(d) { return d.date; }).left;
+        var bisect = d3.bisector(function (d) {
+          return d.date;
+        }).left;
         //
-        function mousemove(e){
+        function mousemove(e) {
           // TODO hardcoded tooltip not good. Add WithToolTip
           var x0 = val_time.invert(d3.pointer(e)[0]);
           var tooltip_units = {};
           var selectedData = {};
-          trans_data.forEach(function(d){
+          trans_data.forEach(function (d) {
             var i = bisect(d, x0, 1);
             selectedData = d[i];
-            d3.select("g.tooltip_circles circle#legend"+selectedData.key)
+            d3.select("g.tooltip_circles circle#legend" + selectedData.key)
               .attr("cx", val_time(selectedData.date))
               .attr("cy", val_linear(selectedData.value));
             tooltip_units[selectedData.key] = selectedData.value;
           });
           tooltip
-            .style("top", (e.clientY-180)+"px")
-            .style("left", (e.clientX-120)+"px")
-              .html(selectedData.date
-                .toLocaleString("en-US", date_options)+
-                "<br>Passed: "+tooltip_units.pass+
-                "<br>Connected: "+tooltip_units.conn+
-                "<br>Fibre Km: "+tooltip_units.f);
+            .style("top", e.clientY - 180 + "px")
+            .style("left", e.clientX - 120 + "px")
+            .html(
+              selectedData.date.toLocaleString("en-US", date_options) +
+                "<br>Passed: " +
+                tooltip_units.pass +
+                "<br>Connected: " +
+                tooltip_units.conn +
+                "<br>Fibre Km: " +
+                tooltip_units.f,
+            );
         }
         //
-        function mouseout(e){
+        function mouseout(e) {
           tooltip.style("opacity", 0);
           d3.selectAll("g.tooltip_circles circle").style("opacity", 0);
         }
@@ -2059,708 +2080,723 @@ function MultiLineTimeChartSimple() {
     });
   }
   //
-  chart.Data = function(val){
-    if(!arguments.length) return data;
+  chart.Data = function (val) {
+    if (!arguments.length) return data;
     data = val;
-    if(typeof updateData === 'function') updateData();
+    if (typeof updateData === "function") updateData();
     return chart;
-  }
+  };
   //
-  chart.Time = function(val){
-    if(!arguments.length) return time;
+  chart.Time = function (val) {
+    if (!arguments.length) return time;
     time = val;
-    if(typeof updateTime === 'function') updateTime();
+    if (typeof updateTime === "function") updateTime();
     return chart;
-  }
+  };
   //
-  chart.WithDateOptions = function(val) {
-    if(!arguments.length) return date_options;
+  chart.WithDateOptions = function (val) {
+    if (!arguments.length) return date_options;
     date_options = val;
-    if(typeof updateDateOptions === 'function') updateDateOptions();
+    if (typeof updateDateOptions === "function") updateDateOptions();
     return chart;
-  }
+  };
   //
-  chart.Colour = function(val) {
-    if(!arguments.length) return colour;
+  chart.Colour = function (val) {
+    if (!arguments.length) return colour;
     colour = val;
-    if (typeof updateColour === 'function') updateColour();
+    if (typeof updateColour === "function") updateColour();
     return chart;
-  }
+  };
   //
-  chart.ColourDomain = function(val) {
-    if(!arguments.length) return colourDomain;
+  chart.ColourDomain = function (val) {
+    if (!arguments.length) return colourDomain;
     colourDomain = val;
-    if (typeof updateColourDomain === 'function') updateColourDomain();
+    if (typeof updateColourDomain === "function") updateColourDomain();
     return chart;
-  }
+  };
   //
-  chart.ColourRange = function(val){
-    if(!arguments.length) return colourRange;
+  chart.ColourRange = function (val) {
+    if (!arguments.length) return colourRange;
     colourRange = val;
-    if (typeof updateColourRange === 'function') updateColourRange();
+    if (typeof updateColourRange === "function") updateColourRange();
     return chart;
-  }
+  };
   //
-  chart.Height = function(val){
-    if(!arguments.length) return height;
+  chart.Height = function (val) {
+    if (!arguments.length) return height;
     height = val;
     dims.h = val;
-    if(typeof updateHeight === 'function') updateHeight();
+    if (typeof updateHeight === "function") updateHeight();
     return chart;
-  }
+  };
   //
-  chart.Width = function(val) {
-    if(!arguments.length) return width;
+  chart.Width = function (val) {
+    if (!arguments.length) return width;
     width = val;
     dims.w = val;
-    if(typeof updateWidth === 'function') updateWidth();
+    if (typeof updateWidth === "function") updateWidth();
     return chart;
-  }
+  };
   //
-  chart.MarginLeft = function(val){
-    if(!arguments.length) return marginLeft;
+  chart.MarginLeft = function (val) {
+    if (!arguments.length) return marginLeft;
     marginLeft = val;
     dims.mL = marginLeft;
-    if (typeof updateMarginLeft === 'function') updateMarginLeft();
+    if (typeof updateMarginLeft === "function") updateMarginLeft();
     return chart;
-  }
+  };
   //
-  chart.MarginRight = function(val){
-    if(!arguments.length) return marginRight;
+  chart.MarginRight = function (val) {
+    if (!arguments.length) return marginRight;
     marginRight = val;
     dims.mR = marginRight;
-    if (typeof updateMarginRight === 'function') updateMarginRight();
+    if (typeof updateMarginRight === "function") updateMarginRight();
     return chart;
-  }
+  };
   //
-  chart.MarginTop = function(val){
-    if(!arguments.length) return marginTop;
+  chart.MarginTop = function (val) {
+    if (!arguments.length) return marginTop;
     marginTop = val;
     dims.mT = marginTop;
-    if (typeof updateMarginTop === 'function') updateMarginTop();
+    if (typeof updateMarginTop === "function") updateMarginTop();
     return chart;
-  }
+  };
   //
-  chart.MarginBottom = function(val){
-    if(!arguments.length) return marginBottom;
+  chart.MarginBottom = function (val) {
+    if (!arguments.length) return marginBottom;
     marginBottom = val;
     dims.mB = marginBottom;
-    if (typeof updateMarginBottom === 'function') updateMarginBottom();
+    if (typeof updateMarginBottom === "function") updateMarginBottom();
     return chart;
-  }
+  };
   //
-  chart.LineKeys = function(val){
-    if(!arguments.length) return lineKeys;
+  chart.LineKeys = function (val) {
+    if (!arguments.length) return lineKeys;
     lineKeys = val;
-    if(typeof updateLineKeys === 'function') updateLineKeys();
+    if (typeof updateLineKeys === "function") updateLineKeys();
     return chart;
-  }
+  };
   //
-  chart.WithLegend = function(val){
-    if(!arguments.length) return withLegend;
+  chart.WithLegend = function (val) {
+    if (!arguments.length) return withLegend;
     withLegend = val;
-    if(typeof updateLegend === 'function') updateLegend();
+    if (typeof updateLegend === "function") updateLegend();
     return chart;
-  }
+  };
   //
-  chart.DomainVal = function(val){
-    if(!arguments.length) return val_domain;
+  chart.DomainVal = function (val) {
+    if (!arguments.length) return val_domain;
     val_domain = val;
-    if(typeof updateDomainVal === 'function') updateDomainVal();
+    if (typeof updateDomainVal === "function") updateDomainVal();
     return chart;
-  }
+  };
   //
-  chart.DomainTime = function(val){
-    if(!arguments.length) return time_domain;
+  chart.DomainTime = function (val) {
+    if (!arguments.length) return time_domain;
     time_domain = val;
-    if(typeof updateDomainTime === 'function') updateDomainTime();
+    if (typeof updateDomainTime === "function") updateDomainTime();
     return chart;
-  }
+  };
   //
   return chart;
 }
 //
 //
-function SingleHorzBarChart(){
+function SingleHorzBarChart() {
   var data = [],
     svg_id = "",
     val,
     val_domain,
     band_domain,
     colour = d3.scaleOrdinal(),
-    colourDomain = ["A","B","C"],
+    colourDomain = ["A", "B", "C"],
     colourRange = d3.schemeSet1,
-    width = 800, height = 600,
-    marginLeft = 0, marginRight = 0, marginBottom = 0, marginTop = 0,
+    width = 800,
+    height = 600,
+    marginLeft = 0,
+    marginRight = 0,
+    marginBottom = 0,
+    marginTop = 0,
     dims = {
       w: width,
       h: height,
       mR: marginRight,
       mL: marginLeft,
       mT: marginTop,
-      mB: marginBottom
+      mB: marginBottom,
     },
     withHover = false,
     hoverEvent = "",
-  	inClick = false,
-		inBar = false,
-    withText = false
-	  ;
+    inClick = false,
+    inBar = false,
+    withText = false;
   //
   var updateData,
     updateDomain,
     updateWidth,
-    updateHeight, 
-    updateMarginLeft, 
-    updateMarginRight, 
-    updateMarginBottom, 
+    updateHeight,
+    updateMarginLeft,
+    updateMarginRight,
+    updateMarginBottom,
     updateMarginTop,
-    updateDomainVal, 
+    updateDomainVal,
     updateDomainBand,
     updateColour,
-    updateColourRange, 
+    updateColourRange,
     updateColourDomain,
     updateHover,
     updateHoverEvent,
-    updateWithText
-  ;
+    updateWithText;
   //
   //
-  function chart(selection){
+  function chart(selection) {
     //
-    selection.each(function(){
-      var boundedWidth = dims.w - dims.mR - dims.mL, 
+    selection.each(function () {
+      var boundedWidth = dims.w - dims.mR - dims.mL,
         boundedHeight = dims.h - dims.mT - dims.mB,
         barPadding = 0.1,
         barSpacing = boundedHeight / data.length,
-        barHeight = barSpacing - barPadding
-      ;
+        barHeight = barSpacing - barPadding;
       //
-      var chartColour = colour
-        .domain(colourDomain)
-        .range(colourRange);
+      var chartColour = colour.domain(colourDomain).range(colourRange);
       //
       var svg = getBaseSVG(this, svg_id, dims, responsivefy);
       //
       // Single band horizontally
       var yScale = d3.scaleBand().domain([""]);
-      var yAxisGen = d3.axisLeft()
-        .tickValues("")
-        .scale(yScale);
+      var yAxisGen = d3.axisLeft().tickValues("").scale(yScale);
       //
-      var xScale = d3.scaleLinear()
-        .domain(val_domain)
-        .range([0,boundedWidth]);
-      var xAxisGen = d3.axisBottom()
-        .scale(xScale);
+      var xScale = d3.scaleLinear().domain(val_domain).range([0, boundedWidth]);
+      var xAxisGen = d3.axisBottom().scale(xScale);
       //
       var bars = svg
         .append("g")
         .selectAll("g")
         .data(data)
         .join("g")
-        .attr("fill", function(d){return chartColour(d.key)})
+        .attr("fill", function (d) {
+          return chartColour(d.key);
+        })
         .attr("class", "category_bar")
-        .attr("id", d=>"bar"+d.key)
+        .attr("id", (d) => "bar" + d.key)
         .selectAll("rect")
-        .data(function(d){return d;})
+        .data(function (d) {
+          return d;
+        })
         .join("rect")
-          .attr("opacity", 1)
-          .attr("x", d=>xScale(d[0]))
-          .attr("y", 0)
-          .attr("width", 0)
-          .attr("height", boundedHeight);
+        .attr("opacity", 1)
+        .attr("x", (d) => xScale(d[0]))
+        .attr("y", 0)
+        .attr("width", 0)
+        .attr("height", boundedHeight);
       //
-      if(withHover) {
-        if(data.length > 1){
+      if (withHover) {
+        if (data.length > 1) {
           //
-          addEventListener(document.body, 'click', function(d){
-            if(!inBar){
-              if (inClick){
+          addEventListener(document.body, "click", function (d) {
+            if (!inBar) {
+              if (inClick) {
                 inClick = !inClick;
                 mouseleave();
               }
             }
           });
 
-          function mouseover(e){
+          function mouseover(e) {
             inBar = true;
-            if(!inClick){
+            if (!inClick) {
               var subgroupName = d3.select(this.parentNode).datum().key;
               d3.selectAll(".category_bar").attr("opacity", 0.1);
-              d3.selectAll("#bar"+subgroupName).attr("opacity", 1);
-              if(hoverEvent !== "") {
-                var event = new CustomEvent(hoverEvent, 
-                  {detail: {id:subgroupName}}
-                );
+              d3.selectAll("#bar" + subgroupName).attr("opacity", 1);
+              if (hoverEvent !== "") {
+                var event = new CustomEvent(hoverEvent, {
+                  detail: { id: subgroupName },
+                });
                 document.body.dispatchEvent(event);
               }
             }
           }
-          function mouseleave(e){
+          function mouseleave(e) {
             inBar = false;
-            if(!inClick){
+            if (!inClick) {
               d3.selectAll(".category_bar").attr("opacity", 1);
-              if(hoverEvent !== "") {
-                var event = new CustomEvent(hoverEvent, 
-                  {detail: {id:""}}
-                );
+              if (hoverEvent !== "") {
+                var event = new CustomEvent(hoverEvent, { detail: { id: "" } });
                 document.body.dispatchEvent(event);
               }
             }
           }
-          function barClicked(e){
+          function barClicked(e) {
             inClick = !inClick;
           }
           bars
             .on("mouseenter", mouseover)
             .on("mouseleave", mouseleave)
-            .on("click", barClicked)
+            .on("click", barClicked);
         }
       }
       //
       bars
         .transition()
         .duration(1000)
-          .attr("width", d=>xScale(d[1]) - xScale(d[0]));
+        .attr("width", (d) => xScale(d[1]) - xScale(d[0]));
       //
-      if(withText) {
-        svg.append("g")
+      if (withText) {
+        svg
+          .append("g")
           .attr("class", "text")
           .attr("fill", "lightgrey")
           .attr("text-anchor", "middle")
           .selectAll()
           .data(data)
           .join("text")
-            .attr("x", d=>
-              xScale(d[0][0])+((xScale(d[0][1]) - xScale(d[0][0]))/2))
-            .attr("y", boundedHeight)
-            .attr("dy", "1em")
-            .text(d=>d.key);
+          .attr(
+            "x",
+            (d) => xScale(d[0][0]) + (xScale(d[0][1]) - xScale(d[0][0])) / 2,
+          )
+          .attr("y", boundedHeight)
+          .attr("dy", "1em")
+          .text((d) => d.key);
       }
       //
       //
       //
-      updateData = function() {
+      updateData = function () {
         //
         svg
           .selectAll("g.category_bar")
           .data(data)
           .join("g")
-          .attr("fill", function(d){return chartColour(d.key)})
+          .attr("fill", function (d) {
+            return chartColour(d.key);
+          })
           .selectAll("rect")
-          .data(function(d){return d;})
+          .data(function (d) {
+            return d;
+          })
           .join("rect")
-            .transition()
-            .duration(1000)
-              .attr("x", d=>xScale(d[0]))
-              .attr("width", d=>xScale(d[1]) - xScale(d[0]));
+          .transition()
+          .duration(1000)
+          .attr("x", (d) => xScale(d[0]))
+          .attr("width", (d) => xScale(d[1]) - xScale(d[0]));
         //
-        if(withText) {
-          svg.selectAll("g.text")
+        if (withText) {
+          svg
+            .selectAll("g.text")
             .attr("fill", "lightgrey")
             .attr("text-anchor", "middle")
             .selectAll("text")
             .data(data)
             .join("text")
-              .transition()
-              .duration(1000)
-                .attr("x", d=>
-                  xScale(d[0][0])+((xScale(d[0][1]) - xScale(d[0][0]))/2))
-                .attr("y", boundedHeight)
-                .attr("dy", "1em")
-                .text(d=>d.key);
+            .transition()
+            .duration(1000)
+            .attr(
+              "x",
+              (d) => xScale(d[0][0]) + (xScale(d[0][1]) - xScale(d[0][0])) / 2,
+            )
+            .attr("y", boundedHeight)
+            .attr("dy", "1em")
+            .text((d) => d.key);
         }
       };
       //
-      updateColourDomain = function(){
-      };
+      updateColourDomain = function () {};
       //
-      updateDomainVal = function() {  
+      updateDomainVal = function () {
         xScale.domain(val_domain);
       };
     });
   }
   //
-  chart.Data = function(val) {
-    if(!arguments.length) return data;
+  chart.Data = function (val) {
+    if (!arguments.length) return data;
     data = val;
-    if(typeof updateData === 'function') updateData();
+    if (typeof updateData === "function") updateData();
     return chart;
-  }
+  };
   //
-  chart.Colour = function(val) {
-    if(!arguments.length) return colour;
+  chart.Colour = function (val) {
+    if (!arguments.length) return colour;
     colour = val;
-    if (typeof updateColour === 'function') updateColour();
+    if (typeof updateColour === "function") updateColour();
     return chart;
-  }
+  };
   //
-  chart.ColourDomain = function(val) {
-    if(!arguments.length) return colourDomain;
+  chart.ColourDomain = function (val) {
+    if (!arguments.length) return colourDomain;
     colourDomain = val;
-    if (typeof updateColourDomain === 'function') updateColourDomain();
+    if (typeof updateColourDomain === "function") updateColourDomain();
     return chart;
-  }
+  };
   //
-  chart.ColourRange = function(val){
-    if(!arguments.length) return colourRange;
+  chart.ColourRange = function (val) {
+    if (!arguments.length) return colourRange;
     colourRange = val;
-    if (typeof updateColourRange === 'function') updateColourRange();
+    if (typeof updateColourRange === "function") updateColourRange();
     return chart;
-  }
+  };
   //
-  chart.Height = function(val){
-    if(!arguments.length) return height;
+  chart.Height = function (val) {
+    if (!arguments.length) return height;
     height = val;
     dims.h = val;
-    if(typeof updateHeight === 'function') updateHeight();
+    if (typeof updateHeight === "function") updateHeight();
     return chart;
-  }
+  };
   //
-  chart.Width = function(val) {
-    if(!arguments.length) return width;
+  chart.Width = function (val) {
+    if (!arguments.length) return width;
     width = val;
     dims.w = val;
-    if(typeof updateWidth === 'function') updateWidth();
+    if (typeof updateWidth === "function") updateWidth();
     return chart;
-  }
+  };
   //
-  chart.MarginLeft = function(val){
-    if(!arguments.length) return marginLeft;
+  chart.MarginLeft = function (val) {
+    if (!arguments.length) return marginLeft;
     marginLeft = val;
     dims.mL = marginLeft;
-    if (typeof updateMarginLeft === 'function') updateMarginLeft();
+    if (typeof updateMarginLeft === "function") updateMarginLeft();
     return chart;
-  }
+  };
   //
-  chart.MarginRight = function(val){
-    if(!arguments.length) return marginRight;
+  chart.MarginRight = function (val) {
+    if (!arguments.length) return marginRight;
     marginRight = val;
     dims.mR = marginRight;
-    if (typeof updateMarginRight === 'function') updateMarginRight();
+    if (typeof updateMarginRight === "function") updateMarginRight();
     return chart;
-  }
+  };
   //
-  chart.MarginTop = function(val){
-    if(!arguments.length) return marginTop;
+  chart.MarginTop = function (val) {
+    if (!arguments.length) return marginTop;
     marginTop = val;
     dims.mT = marginTop;
-    if (typeof updateMarginTop === 'function') updateMarginTop();
+    if (typeof updateMarginTop === "function") updateMarginTop();
     return chart;
-  }
+  };
   //
-  chart.MarginBottom = function(val){
-    if(!arguments.length) return marginBottom;
+  chart.MarginBottom = function (val) {
+    if (!arguments.length) return marginBottom;
     marginBottom = val;
     dims.mB = marginBottom;
-    if (typeof updateMarginBottom === 'function') updateMarginBottom();
+    if (typeof updateMarginBottom === "function") updateMarginBottom();
     return chart;
-  }
+  };
   //
-  chart.DomainVal = function(val){
-    if(!arguments.length) return val_domain;
+  chart.DomainVal = function (val) {
+    if (!arguments.length) return val_domain;
     val_domain = val;
-    if(typeof updateDomainVal === 'function') updateDomainVal();
+    if (typeof updateDomainVal === "function") updateDomainVal();
     return chart;
-  }
+  };
   //
-  chart.WithHover = function(val) {
-    if(!arguments.length) return withHover;
+  chart.WithHover = function (val) {
+    if (!arguments.length) return withHover;
     withHover = val;
-    if(typeof updateHover === 'function') updateHover();
+    if (typeof updateHover === "function") updateHover();
     return chart;
-  }
+  };
   //
-  chart.HoverEvent = function(val){
-    if(!arguments.length) return hoverEvent;
+  chart.HoverEvent = function (val) {
+    if (!arguments.length) return hoverEvent;
     hoverEvent = val;
-    if(typeof updateHoverEvent === 'function') updateHoverEvent();
+    if (typeof updateHoverEvent === "function") updateHoverEvent();
     return chart;
-  }
+  };
   //
-  chart.WithText = function(val){
-    if(!arguments.length) return withText;
+  chart.WithText = function (val) {
+    if (!arguments.length) return withText;
     withText = val;
-    if(typeof updateWithText === 'function') updateWithText();
+    if (typeof updateWithText === "function") updateWithText();
     return chart;
-  }
+  };
   //
-  return chart
+  return chart;
 }
 //
 //
 //
-function LineAndBarChartSimple(){
+function LineAndBarChartSimple() {
   var data = [],
     svg,
     svg_id = "",
     orient = "horizontal",
-    band, val,
+    band,
+    val,
     band_domain = [],
     val_domain = [],
     colour = d3.scaleOrdinal(),
-    colourDomain = ["A","B"],
+    colourDomain = ["A", "B"],
     colourRange = d3.schemeTableau10,
     width = 800,
     height = 600,
-    marginLeft = 0, marginRight = 0, marginBottom = 0, marginTop = 0,
+    marginLeft = 0,
+    marginRight = 0,
+    marginBottom = 0,
+    marginTop = 0,
     dims = {
       w: width,
       h: height,
       mR: marginRight,
       mL: marginLeft,
       mT: marginTop,
-      mB: marginBottom
+      mB: marginBottom,
     },
     strokeColour = "green",
     strokeWidth = 1.5,
-    threshold_bin = 0.3
-;
+    threshold_bin = 0.3;
   //
   var updateData,
     updateBandDomain,
     updateValDomain,
     updateWidth,
-    updateHeight, 
-    updateMarginLeft, 
-    updateMarginRight, 
+    updateHeight,
+    updateMarginLeft,
+    updateMarginRight,
     updateMarginBottom,
-    updateThresholdBin
-;
+    updateThresholdBin;
   //
-  function chart(selection){
+  function chart(selection) {
     //
-    selection.each(function(){
+    selection.each(function () {
       //
       //
-      var boundedWidth = dims.w - dims.mR - dims.mL, 
+      var boundedWidth = dims.w - dims.mR - dims.mL,
         boundedHeight = dims.h - dims.mT - dims.mB,
         barPadding = 0.1,
         barSpacing = boundedHeight / data.length,
-        barHeight = barSpacing - barPadding
-      ;
+        barHeight = barSpacing - barPadding;
       //
-      var chartColour = colour
-        .domain(colourDomain)
-        .range(colourRange);
+      var chartColour = colour.domain(colourDomain).range(colourRange);
       //
       svg = getBaseSVG(this, svg_id, dims, responsivefy);
       //
-      var x = d3.scaleLinear()
-        .range([0, boundedWidth]);
+      var x = d3.scaleLinear().range([0, boundedWidth]);
       x.domain(band_domain);
       //
-      var bottomGen = d3.axisBottom(x).tickFormat(function(d,i){return d;});
-      var bottomAxis = svg.append("g")
+      var bottomGen = d3.axisBottom(x).tickFormat(function (d, i) {
+        return d;
+      });
+      var bottomAxis = svg
+        .append("g")
         .attr("transform", `translate(0, ${boundedHeight})`)
         .call(bottomGen);
       //
-      var y = d3.scaleLinear()
-        .range([boundedHeight, 0]);
+      var y = d3.scaleLinear().range([boundedHeight, 0]);
       y.domain(val_domain);
       //
       var leftGen = d3.axisLeft(y).ticks(5);
-      var leftAxis = svg.append("g")
-        .call(leftGen);
+      var leftAxis = svg.append("g").call(leftGen);
       //
       //
-      var bars = svg.append("g")
+      var bars = svg
+        .append("g")
         .selectAll("rect")
         .data(data)
         .join("rect")
-          .attr("x", 1)
-          .attr("transform", function(d) { 
-            return `translate(${x(d.key)},${y(d.value)})`;
-          })
-          .attr("width", function(d) { 
-            return (x(band_domain[1])/band_domain[1])/2;
-          })
-          .transition().duration(1000)
-          .attr("height", function(d) { return boundedHeight - y(d.value); })
-          .style("fill", "#69b3a2")
+        .attr("x", 1)
+        .attr("transform", function (d) {
+          return `translate(${x(d.key)},${y(d.value)})`;
+        })
+        .attr("width", function (d) {
+          return x(band_domain[1]) / band_domain[1] / 2;
+        })
+        .transition()
+        .duration(1000)
+        .attr("height", function (d) {
+          return boundedHeight - y(d.value);
+        })
+        .style("fill", "#69b3a2");
       //
-      var bins = d3.bin()
-        .value(d=>d.key)
+      var bins = d3
+        .bin()
+        .value((d) => d.key)
         .domain(x.domain())
-        .thresholds(x.ticks(band_domain[1]*threshold_bin))
-        (data);
+        .thresholds(x.ticks(band_domain[1] * threshold_bin))(data);
       //
-      var line = d3.line()
-        .x(function(d, i) { return x(i==0?bins[i].x0:bins[i].x1); })
-        .y(function(d) { 
-          return d.length 
-            ? y(d.map(d=>d.value).reduce((a,b)=>a+b)/d.length)
-            : y(0) 
+      var line = d3
+        .line()
+        .x(function (d, i) {
+          return x(i == 0 ? bins[i].x0 : bins[i].x1);
+        })
+        .y(function (d) {
+          return d.length
+            ? y(d.map((d) => d.value).reduce((a, b) => a + b) / d.length)
+            : y(0);
         })
         .curve(d3.curveMonotoneX);
       //
       var pathLength;
-      var path = svg.append("path")
+      var path = svg
+        .append("path")
         .datum(bins)
-        .attr("class","path")
+        .attr("class", "path")
         .attr("fill", "none")
         .attr("stroke", strokeColour)
         .attr("stroke-width", strokeWidth)
         .attr("d", line)
-        .attr("stroke-dasharray", function() {
-          return pathLength = this.getTotalLength();
+        .attr("stroke-dasharray", function () {
+          return (pathLength = this.getTotalLength());
         })
         .attr("stroke-dashoffset", pathLength);
       //
       path
         .transition()
-          .duration(1000)
+        .duration(1000)
         .on("start", function repeat() {
-          d3.active(this)
-            .attr("stroke-dashoffset", 0)
+          d3.active(this).attr("stroke-dashoffset", 0);
         });
 
       //
       //
-      updateData = function(){
+      updateData = function () {
         //
-        band_domain = [0,d3.max(data, d=>parseInt(d.key))];
+        band_domain = [0, d3.max(data, (d) => parseInt(d.key))];
         x.domain(band_domain);
-        var bottomGen = d3.axisBottom(x).tickFormat(function(d,i){return d;});
-        bottomAxis
-          .transition()
-          .duration(800)
-          .call(bottomGen);
+        var bottomGen = d3.axisBottom(x).tickFormat(function (d, i) {
+          return d;
+        });
+        bottomAxis.transition().duration(800).call(bottomGen);
         //
-        val_domain = [0,d3.max(data, d=>d.value)];
+        val_domain = [0, d3.max(data, (d) => d.value)];
         y.domain(val_domain);
         var leftGen = d3.axisLeft(y).ticks(5);
-        leftAxis
-          .transition()
-          .duration(800)
-          .call(leftGen);
+        leftAxis.transition().duration(800).call(leftGen);
         //
-        bins = d3.bin()
-          .value(d=>d.key)
+        bins = d3
+          .bin()
+          .value((d) => d.key)
           .domain(x.domain())
-          .thresholds(x.ticks(band_domain[1]*threshold_bin))
-          (data);
+          .thresholds(x.ticks(band_domain[1] * threshold_bin))(data);
         //
-        svg.selectAll("rect")
+        svg
+          .selectAll("rect")
           .data(data)
           .join("rect")
-          .transition().duration(1000)
-          .attr("transform", function(d) { 
+          .transition()
+          .duration(1000)
+          .attr("transform", function (d) {
             return `translate(${x(d.key)},${y(d.value)})`;
           })
-          .attr("width", function(d) { 
-            return (x(band_domain[1])/band_domain[1])/2;
+          .attr("width", function (d) {
+            return x(band_domain[1]) / band_domain[1] / 2;
           })
-          .attr("height", function(d) { return boundedHeight - y(d.value); })
-          .style("fill", "#69b3a2")
+          .attr("height", function (d) {
+            return boundedHeight - y(d.value);
+          })
+          .style("fill", "#69b3a2");
         //
-        line = d3.line()
-          .x(function(d, i) { return x(i==0?bins[i].x0:bins[i].x1); })
-          .y(function(d) { 
-            return d.length 
-              ? y(d.map(d=>d.value).reduce((a,b)=>a+b)/d.length)
-              : y(0) 
+        line = d3
+          .line()
+          .x(function (d, i) {
+            return x(i == 0 ? bins[i].x0 : bins[i].x1);
+          })
+          .y(function (d) {
+            return d.length
+              ? y(d.map((d) => d.value).reduce((a, b) => a + b) / d.length)
+              : y(0);
           })
           .curve(d3.curveMonotoneX);
         //
         path
           .datum(bins)
           .join("path")
-          .transition().duration(800)
-          .attr("d", line)
-      }
+          .transition()
+          .duration(800)
+          .attr("d", line);
+      };
     });
   }
   //
-  chart.Data = function(val) { 
-    if(!arguments.length) return data;
+  chart.Data = function (val) {
+    if (!arguments.length) return data;
     data = val;
-    if(typeof updateData === 'function') updateData();
+    if (typeof updateData === "function") updateData();
     return chart;
-  }
-  chart.StrokeColour = function(val) {
-    if(!arguments.length) return strokeColour;
+  };
+  chart.StrokeColour = function (val) {
+    if (!arguments.length) return strokeColour;
     strokeColour = val;
-    if(typeof updateStrokeColour === 'function') updateStrokeColour();
+    if (typeof updateStrokeColour === "function") updateStrokeColour();
     return chart;
-  }
+  };
   //
-  chart.StrokeWidth = function(val) {
-    if(!arguments.length) return strokeWidth;
+  chart.StrokeWidth = function (val) {
+    if (!arguments.length) return strokeWidth;
     strokeWidth = val;
-    if(typeof updateStrokeWidth === 'function') updateStrokeWidth();
+    if (typeof updateStrokeWidth === "function") updateStrokeWidth();
     return chart;
-  }
+  };
   //
-  chart.BandDomain = function(val) { 
-    if(!arguments.length) return band_domain;
+  chart.BandDomain = function (val) {
+    if (!arguments.length) return band_domain;
     band_domain = val;
-    if(typeof updateBandDomain === 'function') updateBandDomain();
+    if (typeof updateBandDomain === "function") updateBandDomain();
     return chart;
-  }
+  };
   //
-  chart.ValDomain = function(val){
-    if(!arguments.length) return val_domain;
+  chart.ValDomain = function (val) {
+    if (!arguments.length) return val_domain;
     val_domain = val;
-    if(typeof updateValDomain === 'function') updateValDomain();
+    if (typeof updateValDomain === "function") updateValDomain();
     return chart;
-  }
+  };
   //
-  chart.Height = function(val){
-    if(!arguments.length) return height;
+  chart.Height = function (val) {
+    if (!arguments.length) return height;
     height = val;
     dims.h = val;
-    if(typeof updateHeight === 'function') updateHeight();
+    if (typeof updateHeight === "function") updateHeight();
     return chart;
-  }
+  };
   //
-  chart.Width = function(val) {
-    if(!arguments.length) return width;
+  chart.Width = function (val) {
+    if (!arguments.length) return width;
     width = val;
     dims.w = val;
-    if(typeof updateWidth === 'function') updateWidth();
+    if (typeof updateWidth === "function") updateWidth();
     return chart;
-  }
+  };
   //
-  chart.MarginLeft = function(val){
-    if(!arguments.length) return marginLeft;
+  chart.MarginLeft = function (val) {
+    if (!arguments.length) return marginLeft;
     marginLeft = val;
     dims.mL = marginLeft;
-    if (typeof updateMarginLeft === 'function') updateMarginLeft();
+    if (typeof updateMarginLeft === "function") updateMarginLeft();
     return chart;
-  }
+  };
   //
-  chart.MarginRight = function(val){
-    if(!arguments.length) return marginRight;
+  chart.MarginRight = function (val) {
+    if (!arguments.length) return marginRight;
     marginRight = val;
     dims.mR = marginRight;
-    if (typeof updateMarginRight === 'function') updateMarginRight();
+    if (typeof updateMarginRight === "function") updateMarginRight();
     return chart;
-  }
+  };
   //
-  chart.MarginTop = function(val){
-    if(!arguments.length) return marginTop;
+  chart.MarginTop = function (val) {
+    if (!arguments.length) return marginTop;
     marginTop = val;
     dims.mT = marginTop;
-    if (typeof updateMarginTop === 'function') updateMarginTop();
+    if (typeof updateMarginTop === "function") updateMarginTop();
     return chart;
-  }
+  };
   //
-  chart.MarginBottom = function(val){
-    if(!arguments.length) return marginBottom;
+  chart.MarginBottom = function (val) {
+    if (!arguments.length) return marginBottom;
     marginBottom = val;
     dims.mB = marginBottom;
-    if (typeof updateMarginBottom === 'function') updateMarginBottom();
+    if (typeof updateMarginBottom === "function") updateMarginBottom();
     return chart;
-  }
+  };
   //
-  chart.ThresholdBin = function(val){
-    if(!arguments.length) return threshold_bin;
+  chart.ThresholdBin = function (val) {
+    if (!arguments.length) return threshold_bin;
     threshold_bin = val;
-    if (typeof updateThresholdBin === 'function') updateThresholdBin();
+    if (typeof updateThresholdBin === "function") updateThresholdBin();
     return chart;
-  }
+  };
   //
   return chart;
 }
@@ -2768,38 +2804,43 @@ function LineAndBarChartSimple(){
 // TODO newer version of data used here, with {Data:...,Summary:...} format
 // TODO change all other functions to new format
 //
-function HeatMapBlockedSimple(){
+function HeatMapBlockedSimple() {
   //
   var data = [],
-    svg, svg_id = "",
+    svg,
+    svg_id = "",
     orient = "horizontal",
     data_accessor,
-    date_accessor = (d)=>d,
+    date_accessor = (d) => d,
     chartColour,
     domain_z,
-    sortFn = (a,b)=>{return 0;},
+    sortFn = (a, b) => {
+      return 0;
+    },
     hover,
     on_hover,
     //
     extent = [],
-    with_time = false, date_extent = 0, 
+    with_time = false,
+    date_extent = 0,
     height_percentage = 0.2,
     width = 800,
     height = 600,
-    marginLeft = 0, marginRight = 0, marginBottom = 0, marginTop = 0,
+    marginLeft = 0,
+    marginRight = 0,
+    marginBottom = 0,
+    marginTop = 0,
     dims = {
       w: width,
       h: height,
       mR: marginRight,
       mL: marginLeft,
       mT: marginTop,
-      mB: marginBottom
+      mB: marginBottom,
     },
-    cell_spacing = 0.1
-  ;
+    cell_spacing = 0.1;
   //
-  var updateData
-  ;
+  var updateData;
   //
   function getData() {
     return data_accessor(data);
@@ -2808,15 +2849,18 @@ function HeatMapBlockedSimple(){
     return summary_accessor(data);
   }
   //
-  function chart(selection){
-    selection.each(function(){
+  function chart(selection) {
+    selection.each(function () {
       //
-      var boundedWidth = dims.w - dims.mR - dims.mL, 
-        boundedHeight = dims.h - dims.mT - dims.mB
-      ;
+      var boundedWidth = dims.w - dims.mR - dims.mL,
+        boundedHeight = dims.h - dims.mT - dims.mB;
       //
-      if(!data) { return; }
-      if(svg_id == "") { return; }
+      if (!data) {
+        return;
+      }
+      if (svg_id == "") {
+        return;
+      }
       //
       var svg = getBaseSVG(this, svg_id, dims, responsivefy);
       //
@@ -2828,86 +2872,91 @@ function HeatMapBlockedSimple(){
       //
       //
       //
-      var bandScaleSymLog = d3.scaleSymlog().
-        domain(with_time 
-          ? [0, date_extent]
-          : extent).
-        constant(0.1). 
-        range([boundedHeight*0.05, boundedHeight*0.95]);
+      var bandScaleSymLog = d3
+        .scaleSymlog()
+        .domain(with_time ? [0, date_extent] : extent)
+        .constant(0.1)
+        .range([boundedHeight * 0.05, boundedHeight * 0.95]);
       //
       //
-      var _w_num = Math.ceil((data_length/date_extent)),
+      var _w_num = Math.ceil(data_length / date_extent),
         _h_num = date_extent,
-        _block_height = (boundedHeight/_h_num) - (cell_spacing*2), 
-        _block_width = (boundedWidth/_w_num) - (cell_spacing*2)
-      ;
+        _block_height = boundedHeight / _h_num - cell_spacing * 2,
+        _block_width = boundedWidth / _w_num - cell_spacing * 2;
       //
-      var cell = svg.append("g")
+      var cell = svg
+        .append("g")
         .attr("class", "cells")
-        .attr("transform", `translate(0,0)`)
-      ;
+        .attr("transform", `translate(0,0)`);
       //
       var day_marker = new Set();
       //
-      cell.selectAll(".square")
-        .data(thisData, d=>d)
+      cell
+        .selectAll(".square")
+        .data(thisData, (d) => d)
         .join("rect")
         .sort(sortFn)
         .attr("width", _block_width)
         .attr("height", 0)
-        .attr("x", function(d, i) {
-          var x0 = Math.floor(i%_w_num), 
-            ret = x0 + (cell_spacing + _block_width) * x0
+        .attr("x", function (d, i) {
+          var x0 = Math.floor(i % _w_num),
+            ret = x0 + (cell_spacing + _block_width) * x0;
           return ret;
         })
-        .attr("y", function(d, i) { 
-          var y0 = Math.floor(i/_w_num)%_h_num, 
-            ret = y0 + (cell_spacing + _block_height) * y0
+        .attr("y", function (d, i) {
+          var y0 = Math.floor(i / _w_num) % _h_num,
+            ret = y0 + (cell_spacing + _block_height) * y0;
           return ret;
         })
-        .style("fill", function(d){return chartColour(d.status)})
+        .style("fill", function (d) {
+          return chartColour(d.status);
+        })
         .style("stroke", "#111")
-        .attr("class", d=>"a"+date_accessor(d).toLocaleString().replaceAll("/","-"))
+        .attr(
+          "class",
+          (d) => "a" + date_accessor(d).toLocaleString().replaceAll("/", "-"),
+        )
         .classed("square", true)
-        .attr("extra", d=>date_accessor(d).toLocaleString())
-        .attr("stroke-width", function(d,i){
+        .attr("extra", (d) => date_accessor(d).toLocaleString())
+        .attr("stroke-width", function (d, i) {
           var loc_date = date_accessor(d).toLocaleString();
-          if(!day_marker.has(loc_date)){
+          if (!day_marker.has(loc_date)) {
             day_marker.add(loc_date);
             return 2;
           }
           return 0.1;
         })
         .transition()
-          .delay(function(d, i) { return (i - _h_num) * updateDelay; })
-          .duration(updateDuration)
-          .attr("height", _block_height);
-          ;
+        .delay(function (d, i) {
+          return (i - _h_num) * updateDelay;
+        })
+        .duration(updateDuration)
+        .attr("height", _block_height);
       //
       //
-      function makeHoverLook(date){
+      function makeHoverLook(date) {
         //
         var sq = document.querySelectorAll(".square");
-        sq.forEach(d=>d.style.opacity = 0.2);
+        sq.forEach((d) => (d.style.opacity = 0.2));
         // TODO bad class names and mangling.
-        var cl = document.querySelectorAll(".a"
-          + date.toLocaleString().replaceAll("/","-"));
-        cl.forEach(d=>d.style.opacity = 1);
+        var cl = document.querySelectorAll(
+          ".a" + date.toLocaleString().replaceAll("/", "-"),
+        );
+        cl.forEach((d) => (d.style.opacity = 1));
       }
       function clearHoverLook() {
         var sq = document.querySelectorAll(".square");
-        sq.forEach(d=>d.style.opacity = 1);
+        sq.forEach((d) => (d.style.opacity = 1));
       }
       //
       //
-      if(typeof hover === 'object'){
+      if (typeof hover === "object") {
         var bisect = d3.bisector(date_accessor);
-        cell.on('mousemove', (e)=>{
+        cell.on("mousemove", (e) => {
           //
           var [posX, posY] = d3.pointer(e),
             event = hover,
-            date = date_accessor(e.srcElement.__data__)
-          ;
+            date = date_accessor(e.srcElement.__data__);
           event.detail.date = date;
           event.detail.obj = e.srcElement.__data__;
           event.detail.originalEvent = e;
@@ -2918,14 +2967,14 @@ function HeatMapBlockedSimple(){
           document.body.dispatchEvent(event);
         });
         //
-        cell.on('mouseleave', (e)=>{
+        cell.on("mouseleave", (e) => {
           var event = hover;
           event.detail.enter = false;
           document.body.dispatchEvent(event);
         });
         //
-        function selfEvent(e){
-          if(e.detail.enter){
+        function selfEvent(e) {
+          if (e.detail.enter) {
             makeHoverLook(e.detail.date);
           } else {
             clearHoverLook();
@@ -2933,18 +2982,17 @@ function HeatMapBlockedSimple(){
         }
         try {
           document.body.removeEventListener(hover.type, selfEvent);
-        } catch(err) {
-          console.error("Event Listener Error",err);
+        } catch (err) {
+          console.error("Event Listener Error", err);
         } finally {
           addEventListener(document.body, hover.type, selfEvent);
         }
-
       }
       //
-      if(typeof on_hover === "string"){
-       //
+      if (typeof on_hover === "string") {
+        //
         function hoverFn(e) {
-          if(e.detail.enter){
+          if (e.detail.enter) {
             var date = e.detail.date;
             makeHoverLook(date);
           } else {
@@ -2954,165 +3002,163 @@ function HeatMapBlockedSimple(){
         //
         try {
           document.body.removeEventListener(on_hover, hoverFn);
-        } catch(err) {
-          console.error("Event Listener Error",err);
+        } catch (err) {
+          console.error("Event Listener Error", err);
         } finally {
           addEventListener(document.body, on_hover, hoverFn);
         }
       }
       //
       //
-      updateData = function(){
-
-      }
+      updateData = function () {};
     });
   }
   //
   //
-  chart.SvgID = function(val){
-    if(!arguments.length) return svg_id;
+  chart.SvgID = function (val) {
+    if (!arguments.length) return svg_id;
     svg_id = val;
     return chart;
-  }
+  };
   //
-  chart.Data = function(val) {
-    if(!arguments.length) return data;
+  chart.Data = function (val) {
+    if (!arguments.length) return data;
     data = val;
-    if(typeof updateData === 'function') updateData();
+    if (typeof updateData === "function") updateData();
     return chart;
-  }
+  };
   //
-  chart.DateAccessor = function(val){
-    if(!arguments.length) return date_accessor;
+  chart.DateAccessor = function (val) {
+    if (!arguments.length) return date_accessor;
     date_accessor = val;
-    if(typeof updateDateAccessor === 'function') updateDateAccessor();
+    if (typeof updateDateAccessor === "function") updateDateAccessor();
     return chart;
-  }
+  };
   //
-  chart.SortFn = function(val) {
-    if(!arguments.length) return sortFn;
+  chart.SortFn = function (val) {
+    if (!arguments.length) return sortFn;
     sortFn = val;
-    if(typeof updateSortFn === 'function') updateSortFn();
+    if (typeof updateSortFn === "function") updateSortFn();
     return chart;
-  }
+  };
   //
-  chart.WithHover = function(val){
-    if(!arguments.length) return hover;
+  chart.WithHover = function (val) {
+    if (!arguments.length) return hover;
     hover = val;
-    if(typeof updateHover === 'function') updateHover();
+    if (typeof updateHover === "function") updateHover();
     return chart;
-  }
+  };
   //
-  chart.OnHover = function(val) {
-    if(!arguments.length) return on_hover;
+  chart.OnHover = function (val) {
+    if (!arguments.length) return on_hover;
     on_hover = val;
-    if(typeof updateOnHover === 'function') updateOnHover();
+    if (typeof updateOnHover === "function") updateOnHover();
     return chart;
-  }
+  };
   //
-  chart.DataAccessor = function(val) {
-    if(!arguments.length) return data_accessor;
+  chart.DataAccessor = function (val) {
+    if (!arguments.length) return data_accessor;
     data_accessor = val;
-    if(typeof updateDataAccessor === 'function') updateDataAccessor();
+    if (typeof updateDataAccessor === "function") updateDataAccessor();
     return chart;
-  }
+  };
   //
-  chart.DomainZ = function(val){
-    if(!arguments.length) return domain_z;
+  chart.DomainZ = function (val) {
+    if (!arguments.length) return domain_z;
     domain_z = val;
-    if (typeof updateDomainZ === 'function') updateDomainZ();
+    if (typeof updateDomainZ === "function") updateDomainZ();
     return chart;
-  }
+  };
   //
-  chart.ColourFnZ = function(val){
-    if(!arguments.length) return chartColour;
+  chart.ColourFnZ = function (val) {
+    if (!arguments.length) return chartColour;
     chartColour = val;
-    if (typeof updateColourFnZ === 'function') updateColourFnZ();
+    if (typeof updateColourFnZ === "function") updateColourFnZ();
     return chart;
-  }
+  };
   //
-  chart.ColourDomainZ = function(val){
-    if(!arguments.length) return colour_domain_z;
+  chart.ColourDomainZ = function (val) {
+    if (!arguments.length) return colour_domain_z;
     colour_domain_z = val;
-    if (typeof updateColourDomainZ === 'function') updateColourDomainZ();
+    if (typeof updateColourDomainZ === "function") updateColourDomainZ();
     return chart;
-  }
+  };
   //
-  chart.ColourRangeZ = function(val){
-    if(!arguments.length) return colour_range_z;
+  chart.ColourRangeZ = function (val) {
+    if (!arguments.length) return colour_range_z;
     colour_range_z = val;
-    if (typeof updateColourRangeZ === 'function') updateColourRangeZ();
+    if (typeof updateColourRangeZ === "function") updateColourRangeZ();
     return chart;
-  }
+  };
   //
-  chart.Orient = function(val) {
-    if(!arguments.length) return orient;
+  chart.Orient = function (val) {
+    if (!arguments.length) return orient;
     orient = val;
-    if (typeof updateOrient === 'function') updateOrient();
+    if (typeof updateOrient === "function") updateOrient();
     return chart;
-  }
+  };
   //
-  chart.WithTime = function(val) {
-    if(!arguments.length) return with_time;
+  chart.WithTime = function (val) {
+    if (!arguments.length) return with_time;
     with_time = val;
-    if (typeof updateWithTime === 'function') updateWithTime();
+    if (typeof updateWithTime === "function") updateWithTime();
     return chart;
-  }
+  };
   //
-  chart.DateExtent = function(val) {
-    if(!arguments.length) return date_extent;
+  chart.DateExtent = function (val) {
+    if (!arguments.length) return date_extent;
     date_extent = val;
-    if (typeof updateDateExtent === 'function') updateDateExtend();
+    if (typeof updateDateExtent === "function") updateDateExtend();
     return chart;
-  }
+  };
   //
-  chart.Width = function(val) {
-    if(!arguments.length) return width;
+  chart.Width = function (val) {
+    if (!arguments.length) return width;
     width = val;
     dims.w = width;
-    if (typeof updateWidth === 'function') updateWidth();
+    if (typeof updateWidth === "function") updateWidth();
     return chart;
-  }
+  };
   //
-  chart.Height = function(val){
-    if(!arguments.length) return height;
+  chart.Height = function (val) {
+    if (!arguments.length) return height;
     height = val;
     dims.h = height;
-    if (typeof updateHeight === 'function') updateWidth();
+    if (typeof updateHeight === "function") updateWidth();
     return chart;
-  }
+  };
   //
-  chart.MarginLeft = function(val){
-    if(!arguments.length) return marginLeft;
+  chart.MarginLeft = function (val) {
+    if (!arguments.length) return marginLeft;
     marginLeft = val;
     dims.mL = marginLeft;
-    if (typeof updateMarginLeft === 'function') updateMarginLeft();
+    if (typeof updateMarginLeft === "function") updateMarginLeft();
     return chart;
-  }
+  };
   //
-  chart.MarginRight = function(val){
-    if(!arguments.length) return marginRight;
+  chart.MarginRight = function (val) {
+    if (!arguments.length) return marginRight;
     marginRight = val;
     dims.mR = marginRight;
-    if (typeof updateMarginRight === 'function') updateMarginRight();
+    if (typeof updateMarginRight === "function") updateMarginRight();
     return chart;
-  }
+  };
   //
-  chart.MarginTop = function(val){
-    if(!arguments.length) return marginTop;
+  chart.MarginTop = function (val) {
+    if (!arguments.length) return marginTop;
     marginTop = val;
     dims.mT = marginTop;
-    if (typeof updateMarginTop === 'function') updateMarginTop();
+    if (typeof updateMarginTop === "function") updateMarginTop();
     return chart;
-  }
+  };
   //
-  chart.MarginBottom = function(val){
-    if(!arguments.length) return marginBottom;
+  chart.MarginBottom = function (val) {
+    if (!arguments.length) return marginBottom;
     marginBottom = val;
     dims.mB = marginBottom;
-    if (typeof updateMarginBottom === 'function') updateMarginBottom();
+    if (typeof updateMarginBottom === "function") updateMarginBottom();
     return chart;
-  }
+  };
   //
   //
   return chart;
@@ -3121,14 +3167,14 @@ function HeatMapBlockedSimple(){
 //
 //
 //
-export { 
-  BarChartSimple, 
-  GroupedBarChartSimple, 
-  DonutChartSimple, 
+export {
+  BarChartSimple,
+  GroupedBarChartSimple,
+  DonutChartSimple,
   LineTimeChartSimple,
   MultiLineTimeChartSimple,
   SingleHorzBarChart,
   LineAndBarChartSimple,
   HeatMapBlockedSimple,
-  LineLinearSpark
-}
+  LineLinearSpark,
+};
