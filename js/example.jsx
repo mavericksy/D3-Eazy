@@ -4,22 +4,23 @@ import { ready } from "../events.js";
 
 ready(function () {
   //
-  var elone = "barChartSimpleOne";
   var dataset = [
-    { key: "JS", value: 32 },
-    { key: "GO", value: 301 },
-    { key: "Rust", value: 71 },
-    { key: "C", value: 182 },
-    { key: "Zig", value: 101 },
-    { key: "Common Lisp", value: 400 },
+    { name: "JS", value: 32, nice: 16 },
+    { name: "GO", value: 301, nice: 202 },
+    { name: "C", value: 182, nice: 120 },
+    { name: "Rust", value: 71, nice: 10 },
+    { name: "Zig", value: 101, nice: 60 },
+    { name: "Common Lisp", value: 400, nice: 350 },
   ];
   //
+  var max = d3.max(dataset, (d) => d.value);
+  var domain = d3.sort(dataset, (d) => -d.value).map((d) => d.name);
+  //
+  const elone = "barChartSimpleOne";
   const rect = document.getElementById(elone).getBoundingClientRect();
   const width = rect.width;
   const height = rect.height;
-  //
-  var max = d3.max(dataset, (d) => d.value);
-  var domain = d3.sort(dataset, (d) => -d.value).map((d) => d.key);
+  console.log("BARONE", width, height, rect);
   //
   var TheBarOne = BarChartSimple()
     .SvgID("thebarone")
@@ -27,13 +28,13 @@ ready(function () {
       return a.value;
     })
     .Band(function (a) {
-      return a.key;
+      return a.name;
     })
     .Orient("vertical")
     .DomainBand(domain)
     .DomainVal([0, max])
     .ColourDomain(domain)
-    .ColourRange(d3.schemeObservable10)
+    .ColourRange(d3.schemeTableau10)
     .Width(width)
     .Height(height)
     .MarginTop(0)
@@ -42,14 +43,17 @@ ready(function () {
     .MarginRight(0)
     .CornerRadiusX(2)
     .Data(dataset);
+  //.DataMax((d) => d.value)
+  //.DataDomain((d) => d.key)
+  //.DataSort((d) => -d.value)
   //
   d3.select("#" + elone).call(TheBarOne);
   //
   //
   var eltwo = "barChartSimpleTwo";
   const recttwo = document.getElementById(eltwo).getBoundingClientRect();
-  const widthtwo = rect.width;
-  const heighttwo = rect.height;
+  const widthtwo = recttwo.width;
+  const heighttwo = recttwo.height;
 
   var TheBarTwo = BarChartSimple()
     .SvgID("thebartwo")
@@ -57,13 +61,13 @@ ready(function () {
       return a.value;
     })
     .Band(function (a) {
-      return a.key;
+      return a.name;
     })
     .Orient("horizontal")
     .DomainBand(domain)
     .DomainVal([0, max])
     .ColourDomain(domain)
-    .ColourRange(d3.schemeObservable10)
+    .ColourRange(d3.schemeTableau10)
     .Width(widthtwo)
     .Height(heighttwo)
     .MarginTop(0)
@@ -76,29 +80,17 @@ ready(function () {
   d3.select("#" + eltwo).call(TheBarTwo);
   //
   //
-  //
   const elGroupedBar = "groupedBarChartSimple";
   const groupedOne = document
     .getElementById(elGroupedBar)
     .getBoundingClientRect();
   const widthGrouped = groupedOne.width;
   const heightGrouped = groupedOne.height;
-
-  console.log(widthGrouped, heightGrouped);
-
-  var datasetGrouped = [
-    { name: "JS", value: 32, nice: 16 },
-    { name: "GO", value: 301, nice: 202 },
-    { name: "C", value: 182, nice: 120 },
-    { name: "Rust", value: 71, nice: 10 },
-    { name: "Zig", value: 101, nice: 60 },
-    { name: "Common Lisp", value: 400, nice: 350 },
-  ];
   //
-  const domainGrouped = d3
-    .sort(datasetGrouped, (d) => -d.value)
-    .map((d) => d.name);
-  const maxGrouped = d3.max(datasetGrouped, (d) => d.value);
+  console.log(widthGrouped, heightGrouped);
+  //
+  const domainGrouped = d3.sort(dataset, (d) => -d.value).map((d) => d.name);
+  const maxGrouped = d3.max(dataset, (d) => d.value);
   //
   var TheGroupedBarOne = GroupedBarChartSimple()
     .SvgID("groupedBarOne")
@@ -109,10 +101,13 @@ ready(function () {
     .Height(heightGrouped)
     .MarginTop(40)
     .MarginBottom(0)
-    .MarginLeft(40)
+    .MarginLeft(80)
     .MarginRight(0)
     .ColourDomain(domainGrouped)
-    .Data(datasetGrouped);
+    .WithText(true)
+    .Data(dataset);
   //
   d3.select("#" + elGroupedBar).call(TheGroupedBarOne);
+  //
+  //
 });

@@ -1,41 +1,71 @@
 import * as d3 from "d3";
 import { DateTime } from "luxon";
 import { addEventListener } from "./events.js";
-
+//
+const isUndef = (a, fn) => fn(a) === undefined;
+//
+const debugLog = (l) => console.debug(l);
+//
 // TODO test and tweak responsive charts
 function responsivefy(svg) {
   var container = d3.select(svg.node().parentNode),
-    width = parseInt(container.style("width"), 10),
-    height = parseInt(container.style("height"), 10),
+    parent = container._groups[0][0].getBoundingClientRect(),
+    width = parseInt(parent.width, 10),
+    height = parseInt(parent.height, 10),
     aspect = width / height;
   svg
     .attr("viewBox", "0 0 " + width + " " + height)
     .attr("perserveAspectRatio", "xMinYMid meet")
     .call(resize);
-  d3.select(window).on("resize." + container.attr("id"), resize);
-  function resize() {
-    var targetWidth = parseInt(container.style("width"), 10);
+  function resize(evt) {
+    var base = container._groups[0][0];
+    var parent = base.getBoundingClientRect();
+    var targetWidth = parseInt(parent.width, 10);
+    var targetHeight = Math.round(targetWidth / aspect);
+    base.setAttribute("width", targetWidth);
+    base.setAttribute("height", targetHeight);
     svg.attr("width", targetWidth);
-    svg.attr("height", Math.round(targetWidth / aspect));
+    svg.attr("height", targetHeight);
+    //svg.attr("viewBox", "0 0 " + targetWidth + " " + targetHeight);
   }
+  d3.select(window).on("resize." + container.attr("id"), resize);
 }
 //
 // TODO objects parameters for more configurability
-function getBaseSVG(_sel, _svg_id, _dims, _responsivefy) {
-  var _d = _dims;
+function getBaseSVG(_selection, _svg_id, _dimensions, _responsivefy) {
+  const _d = _dimensions;
   return d3
-    .select(_sel)
+    .select(_selection)
     .append("svg")
     .attr("id", _svg_id)
-    .attr("height", "100%")
-    .attr("width", "100%")
     .attr("style", "max-width: 100%;overflow:visible;")
-    .append("g")
-    .attr("transform", `translate(${_d.mL},${_d.mT})`)
     .call(_responsivefy);
 }
-
 //
+const base_variables = {
+  //
+  svgID: undefined,
+  value: undefined,
+  /*
+   * TODO: compass orientation
+   *
+   * Horizontal or Vertical along the baseline
+   */
+  orientation: "horizontal",
+  //
+  baseline_offset: 1,
+  /*
+   *
+   */
+  data: [],
+  data_domain: [],
+  data_max: [],
+  //
+};
+//
+const base_update = {};
+//
+// TODO: ALL VARIABLES BETTER NAMES
 function BarChartSimple(name) {
   //
   var band,
@@ -43,9 +73,9 @@ function BarChartSimple(name) {
     svg_id,
     // vertical or horizontal
     // Horizontal: Band is X axis, Val is Y axis
-    // Vertical:   Band is Y Axis. Val is X axis
+    // Vertical:   Band is Y Axis, Val is X axis
     orient = "horizontal",
-    data = [],
+    //
     band_domain = [],
     band_accessor = (d) => d.key,
     val_domain = [],
@@ -59,12 +89,12 @@ function BarChartSimple(name) {
     marginBottom = 0,
     marginTop = 0,
     dims = {
-      w: width,
-      h: height,
-      mR: marginRight,
-      mL: marginLeft,
-      mT: marginTop,
-      mB: marginBottom,
+      width: width,
+      height: height,
+      marginRight: marginRight,
+      marginLeft: marginLeft,
+      marginTop: marginTop,
+      marginBottom: marginBottom,
     },
     withText = false,
     textFill = ["black", "lightgrey"],
@@ -78,8 +108,14 @@ function BarChartSimple(name) {
     domainAsObj = false,
     debug = false,
     baseline_offset = 1,
-    corner_radius_x = 3;
+    corner_radius_x = 3,
+    barPadding = 0.1;
+  //
+  //
   var updateData,
+    updateDataMax,
+    updateDataDomain,
+    updateDataSort,
     updateDomain,
     updateOrient,
     updateWidth,
@@ -103,17 +139,19 @@ function BarChartSimple(name) {
     updateDomainRound,
     updateBarLength,
     updateCornerRadiusX;
+  //
 
+  // BarChartSimple
   function chart(selection) {
     //
     selection.each(function () {
       //
-      var boundedWidth = dims.w - dims.mR - dims.mL,
-        boundedHeight = dims.h - dims.mT - dims.mB,
-        barPadding = 0.1,
+      var boundedWidth = dims.width - dims.marginRight - dims.marginLeft,
+        boundedHeight = dims.height - dims.marginTop - dims.marginBottom,
         barSpacing = boundedHeight / data.length,
         barHeight = barSpacing - barPadding,
         widthScale = boundedWidth / val_domain[1];
+      //
       if (debug) {
         console.log(dims);
         console.log(boundedHeight, boundedWidth);
@@ -122,10 +160,16 @@ function BarChartSimple(name) {
       var chartColour = colour.domain(colourDomain).range(colourRange);
       //
       var svg = getBaseSVG(this, svg_id, dims, responsivefy);
+      svg
+        .append("g")
+        .attr("width", svg.attr("width"))
+        .attr("transform", `translate(${dims.marginLeft},${dims.marginTop})`);
+
       //
       var quant_band = d3
         .scaleBand()
         .domain(
+          // TODO: match object or default
           domainAsObj ? band_domain.map((d) => band_accessor(d)) : band_domain,
         )
         .rangeRound(
@@ -144,25 +188,35 @@ function BarChartSimple(name) {
           );
       //
       var bottomAxis = svg
+        .select("g")
         .append("g")
         .attr("transform", `translate(0,${boundedHeight})`);
-      var leftAxis = svg.append("g").attr("transform", `translate(0,0)`);
+      var leftAxis = svg
+        .select("g")
+        .append("g")
+        .attr("transform", `translate(0,0)`);
       //
       //
       function transitionDims(svg) {
         if (orient === "vertical") {
           svg
-            .attr("height", quant_band.bandwidth())
+            .attr("height", 0)
+            .attr("y", (d) => quant_band(band(d)) + quant_band.bandwidth() / 2)
             .transition()
             .ease(d3.easeLinear)
             .duration(500)
             .delay(function (d, i) {
               return i * 50;
             })
+            .attr("height", quant_band.bandwidth())
+            .attr("y", (d) => quant_band(band(d)))
             .attr("width", (d) => val_linear(val(d)) - val_linear(0));
         } else {
           svg
             .attr("width", 0)
+            .attr("x", (d) => quant_band(band(d)) + quant_band.bandwidth() / 2)
+            .attr("y", boundedHeight)
+            .attr("height", 0)
             .transition()
             .ease(d3.easeLinear)
             .duration(500)
@@ -177,6 +231,7 @@ function BarChartSimple(name) {
       }
       //
       svg
+        .select("g")
         .append("g")
         .selectAll()
         .data(data)
@@ -195,6 +250,7 @@ function BarChartSimple(name) {
       //
       if (withText) {
         svg
+          .select("g")
           .append("g")
           .attr("fill", textFill[0])
           .attr("text-anchor", textAnchor[0])
@@ -417,6 +473,7 @@ function BarChartSimple(name) {
       updateTextFormat = function () {};
       updateDomainRound = function () {};
       updateBarLength = function () {};
+      updateBarPadding = function () {};
     });
   }
   //
@@ -430,6 +487,12 @@ function BarChartSimple(name) {
     if (!arguments.length) return baseline_offset;
     baseline_offset = val;
     if (typeof updateBaselineOffset === "function") updateBaselineOffset();
+    return chart;
+  };
+  chart.BarPadding = function (val) {
+    if (!arguments.length) return barPadding;
+    barPadding = val;
+    if (typeof updateBarPadding === "function") updateBarPadding();
     return chart;
   };
   chart.CornerRadiusX = function (val) {
@@ -577,7 +640,7 @@ function BarChartSimple(name) {
   chart.Width = function (val) {
     if (!arguments.length) return width;
     width = val;
-    dims.w = width;
+    dims.width = width;
     if (typeof updateWidth === "function") updateWidth();
     return chart;
   };
@@ -585,7 +648,7 @@ function BarChartSimple(name) {
   chart.Height = function (val) {
     if (!arguments.length) return height;
     height = val;
-    dims.h = height;
+    dims.height = height;
     if (typeof updateHeight === "function") updateHeight();
     return chart;
   };
@@ -593,7 +656,7 @@ function BarChartSimple(name) {
   chart.MarginLeft = function (val) {
     if (!arguments.length) return marginLeft;
     marginLeft = val;
-    dims.mL = marginLeft;
+    dims.marginLeft = marginLeft;
     if (typeof updateMarginLeft === "function") updateMarginLeft();
     return chart;
   };
@@ -601,7 +664,7 @@ function BarChartSimple(name) {
   chart.MarginRight = function (val) {
     if (!arguments.length) return marginRight;
     marginRight = val;
-    dims.mR = marginRight;
+    dims.marginRight = marginRight;
     if (typeof updateMarginRight === "function") updateMarginRight();
     return chart;
   };
@@ -609,7 +672,7 @@ function BarChartSimple(name) {
   chart.MarginTop = function (val) {
     if (!arguments.length) return marginTop;
     marginTop = val;
-    dims.mT = marginTop;
+    dims.marginTop = marginTop;
     if (typeof updateMarginTop === "function") updateMarginTop();
     return chart;
   };
@@ -617,7 +680,7 @@ function BarChartSimple(name) {
   chart.MarginBottom = function (val) {
     if (!arguments.length) return marginBottom;
     marginBottom = val;
-    dims.mB = marginBottom;
+    dims.marginBottom = marginBottom;
     if (typeof updateMarginBottom === "function") updateMarginBottom();
     return chart;
   };
@@ -654,11 +717,14 @@ function GroupedBarChartSimple() {
     dims = {
       w: width,
       h: height,
-      mR: marginRight,
-      mL: marginLeft,
-      mT: marginTop,
-      mB: marginBottom,
+      marginRight: marginRight,
+      marginLeft: marginLeft,
+      marginTop: marginTop,
+      marginBottom: marginBottom,
     },
+    barPadding = 0.1,
+    barGroupPadding = 0.1,
+    subGroup_padding = 0.1,
     withText = false;
   //
   var updateData,
@@ -683,20 +749,21 @@ function GroupedBarChartSimple() {
     updateTextDeltaY,
     updateTextDeltaX;
   //
-  //
+  // GroupedBarChartSimple
   function chart(selection) {
     selection.each(function () {
-      var boundedWidth = dims.w - dims.mR - dims.mL,
-        boundedHeight = dims.h - dims.mT - dims.mB,
-        barPadding = 0.1,
-        barGroupPadding = 0.1,
-        subGroup_padding = 0.1,
+      var boundedWidth = dims.w - dims.marginRight - dims.marginLeft,
+        boundedHeight = dims.h - dims.marginTop - dims.marginBottom,
         barSpacing = boundedHeight / data.length,
         barHeight = barSpacing - barPadding;
       //
       var chartColour = colour.domain(colourDomain).range(colourRange);
       //
       var svg = getBaseSVG(this, svg_id, dims, responsivefy);
+      svg
+        .append("g")
+        .attr("width", svg.attr("width"))
+        .attr("transform", `translate(${dims.marginLeft},${dims.marginTop})`);
       //
       var groupBand = d3
         .scaleBand()
@@ -717,7 +784,8 @@ function GroupedBarChartSimple() {
         .rangeRound([boundedHeight, 0]);
       //
       //
-      svg
+      let groupedBarsData = svg
+        .select("g")
         .append("g")
         .selectAll("g")
         // Enter in data = loop group per group
@@ -732,7 +800,9 @@ function GroupedBarChartSimple() {
           return subGroup_domain.map(function (key) {
             return { key: key, value: d[key], name: group_accessor(d) };
           });
-        })
+        });
+
+      var groupBarsRect = groupedBarsData
         .join("rect")
         .attr("x", (d) => subGroupBand(d.key) + subGroupBand.bandwidth() / 2)
         .attr("y", (d) => boundedHeight)
@@ -747,20 +817,7 @@ function GroupedBarChartSimple() {
         .attr("x", (d) => subGroupBand(d.key));
       //
       if (withText) {
-        svg
-          .selectAll()
-          .data(data)
-          .join("g")
-          .attr(
-            "transform",
-            (n) => `translate(${groupBand(group_accessor(n))},0)`,
-          )
-          .selectAll()
-          .data(function (d) {
-            return subGroup_domain.map(function (key) {
-              return { key: key, value: d[key], name: d["name"] };
-            });
-          })
+        var groupBarsText = groupedBarsData
           .join("text")
           .attr("x", (d) => subGroupBand(d.key))
           .attr("y", (d) => boundedHeight)
@@ -781,11 +838,13 @@ function GroupedBarChartSimple() {
       }
       //
       svg
+        .select("g")
         .append("g")
         .attr("transform", `translate(0,${boundedHeight})`)
         .call(d3.axisBottom(groupBand).tickSizeOuter(0));
       //
       svg
+        .select("g")
         .append("g")
         .attr("transform", `translate(0,0)`)
         .call(d3.axisLeft(val_linear));
@@ -824,6 +883,14 @@ function GroupedBarChartSimple() {
     if (typeof updateData === "function") updateData();
     return chart;
   };
+  //
+  chart.WithText = function (val) {
+    if (!arguments.length) return withText;
+    withText = val;
+    if (typeof updateWithText === "function") updateWithText();
+    return chart;
+  };
+
   //
   chart.Band = function (val) {
     if (!arguments.length) return band_domain;
@@ -879,7 +946,7 @@ function GroupedBarChartSimple() {
   chart.MarginLeft = function (val) {
     if (!arguments.length) return marginLeft;
     marginLeft = val;
-    dims.mL = marginLeft;
+    dims.marginLeft = marginLeft;
     if (typeof updateMarginLeft === "function") updateMarginLeft();
     return chart;
   };
@@ -887,7 +954,7 @@ function GroupedBarChartSimple() {
   chart.MarginRight = function (val) {
     if (!arguments.length) return marginRight;
     marginRight = val;
-    dims.mR = marginRight;
+    dims.marginRight = marginRight;
     if (typeof updateMarginRight === "function") updateMarginRight();
     return chart;
   };
@@ -895,7 +962,7 @@ function GroupedBarChartSimple() {
   chart.MarginTop = function (val) {
     if (!arguments.length) return marginTop;
     marginTop = val;
-    dims.mT = marginTop;
+    dims.marginTop = marginTop;
     if (typeof updateMarginTop === "function") updateMarginTop();
     return chart;
   };
@@ -903,7 +970,7 @@ function GroupedBarChartSimple() {
   chart.MarginBottom = function (val) {
     if (!arguments.length) return marginBottom;
     marginBottom = val;
-    dims.mB = marginBottom;
+    dims.marginBottom = marginBottom;
     if (typeof updateMarginBottom === "function") updateMarginBottom();
     return chart;
   };
@@ -930,10 +997,10 @@ function DonutChartSimple() {
     dims = {
       w: width,
       h: height,
-      mR: marginRight,
-      mL: marginLeft,
-      mT: marginTop,
-      mB: marginBottom,
+      marginRight: marginRight,
+      marginLeft: marginLeft,
+      marginTop: marginTop,
+      marginBottom: marginBottom,
     },
     colour = d3.scaleOrdinal(),
     colourDomain = ["A", "B"],
@@ -989,8 +1056,8 @@ function DonutChartSimple() {
     //
     selection.each(function () {
       //
-      var boundedWidth = dims.w - dims.mR - dims.mL,
-        boundedHeight = dims.h - dims.mT - dims.mB,
+      var boundedWidth = dims.w - dims.marginRight - dims.marginLeft,
+        boundedHeight = dims.h - dims.marginTop - dims.marginBottom,
         outerRadiusArcShadow = innerRadiusArc + 1,
         innerRadiusArcShadow = innerRadiusArc - shadowWidth;
       //
@@ -999,8 +1066,8 @@ function DonutChartSimple() {
         svg_id,
         (function (_d) {
           return {
-            mL: boundedWidth / 2 + _d.mL,
-            mT: boundedHeight / 2 + _d.mT,
+            marginLeft: boundedWidth / 2 + _d.marginLeft,
+            marginTop: boundedHeight / 2 + _d.marginTop,
           };
         })(dims),
         responsivefy,
@@ -1204,32 +1271,32 @@ function DonutChartSimple() {
   };
   //
   chart.MarginTop = function (val) {
-    if (!arguments.length) return dims.mT;
+    if (!arguments.length) return dims.marginTop;
     marginTop = val;
-    dims.mT = val;
+    dims.marginTop = val;
     if (typeof updateMarginTop === "function") updateMarginTop();
     return chart;
   };
   //
   chart.MarginRight = function (val) {
-    if (!arguments.length) return dims.mR;
+    if (!arguments.length) return dims.marginRight;
     marginRight = val;
-    dims.mR = val;
+    dims.marginRight = val;
     if (typeof updateMarginRight === "function") updateMarginRight();
     return chart;
   };
   //
   chart.MarginBottom = function (val) {
-    if (!arguments.length) return dims.mB;
+    if (!arguments.length) return dims.marginBottom;
     marginTop = val;
-    dims.mB = val;
+    dims.marginBottom = val;
     if (typeof updateMarginBottom === "function") updateMarginBottom();
     return chart;
   };
   chart.MarginLeft = function (val) {
-    if (!arguments.length) return dims.mL;
+    if (!arguments.length) return dims.marginLeft;
     marginTop = val;
-    dims.mL = val;
+    dims.marginLeft = val;
     if (typeof updateMarginLeft === "function") updateMarginLeft();
     return chart;
   };
@@ -1289,10 +1356,10 @@ function LineLinearSpark() {
     dims = {
       w: width,
       h: height,
-      mR: marginRight,
-      mL: marginLeft,
-      mT: marginTop,
-      mB: marginBottom,
+      marginRight: marginRight,
+      marginLeft: marginLeft,
+      marginTop: marginTop,
+      marginBottom: marginBottom,
     },
     chartColour,
     on_hover,
@@ -1304,8 +1371,8 @@ function LineLinearSpark() {
   function chart(selection) {
     selection.each(function () {
       //
-      var boundedWidth = dims.w - dims.mR - dims.mL,
-        boundedHeight = dims.h - dims.mT - dims.mB;
+      var boundedWidth = dims.w - dims.marginRight - dims.marginLeft,
+        boundedHeight = dims.h - dims.marginTop - dims.marginBottom;
       //
       var svg = getBaseSVG(this, svg_id, dims, responsivefy);
       //
@@ -1571,32 +1638,32 @@ function LineLinearSpark() {
   };
   //
   chart.MarginTop = function (val) {
-    if (!arguments.length) return dims.mT;
+    if (!arguments.length) return dims.marginTop;
     marginTop = val;
-    dims.mT = val;
+    dims.marginTop = val;
     if (typeof updateMarginTop === "function") updateMarginTop();
     return chart;
   };
   //
   chart.MarginRight = function (val) {
-    if (!arguments.length) return dims.mR;
+    if (!arguments.length) return dims.marginRight;
     marginRight = val;
-    dims.mR = val;
+    dims.marginRight = val;
     if (typeof updateMarginRight === "function") updateMarginRight();
     return chart;
   };
   //
   chart.MarginBottom = function (val) {
-    if (!arguments.length) return dims.mB;
+    if (!arguments.length) return dims.marginBottom;
     marginTop = val;
-    dims.mB = val;
+    dims.marginBottom = val;
     if (typeof updateMarginBottom === "function") updateMarginBottom();
     return chart;
   };
   chart.MarginLeft = function (val) {
-    if (!arguments.length) return dims.mL;
+    if (!arguments.length) return dims.marginLeft;
     marginTop = val;
-    dims.mL = val;
+    dims.marginLeft = val;
     if (typeof updateMarginLeft === "function") updateMarginLeft();
     return chart;
   };
@@ -1621,10 +1688,10 @@ function LineTimeChartSimple() {
     dims = {
       w: width,
       h: height,
-      mR: marginRight,
-      mL: marginLeft,
-      mT: marginTop,
-      mB: marginBottom,
+      marginRight: marginRight,
+      marginLeft: marginLeft,
+      marginTop: marginTop,
+      marginBottom: marginBottom,
     },
     colour = d3.scaleOrdinal(),
     colourDomain = ["A", "B"],
@@ -1649,8 +1716,8 @@ function LineTimeChartSimple() {
   function chart(selection) {
     selection.each(function () {
       //
-      var boundedWidth = dims.w - dims.mR - dims.mL,
-        boundedHeight = dims.h - dims.mT - dims.mB;
+      var boundedWidth = dims.w - dims.marginRight - dims.marginLeft,
+        boundedHeight = dims.h - dims.marginTop - dims.marginBottom;
       //
       var chartColour = colour.domain(colourDomain).range(colourRange);
       //
@@ -1752,7 +1819,7 @@ function LineTimeChartSimple() {
   chart.MarginLeft = function (val) {
     if (!arguments.length) return marginLeft;
     marginLeft = val;
-    dims.mL = marginLeft;
+    dims.marginLeft = marginLeft;
     if (typeof updateMarginLeft === "function") updateMarginLeft();
     return chart;
   };
@@ -1760,7 +1827,7 @@ function LineTimeChartSimple() {
   chart.MarginRight = function (val) {
     if (!arguments.length) return marginRight;
     marginRight = val;
-    dims.mR = marginRight;
+    dims.marginRight = marginRight;
     if (typeof updateMarginRight === "function") updateMarginRight();
     return chart;
   };
@@ -1768,7 +1835,7 @@ function LineTimeChartSimple() {
   chart.MarginTop = function (val) {
     if (!arguments.length) return marginTop;
     marginTop = val;
-    dims.mT = marginTop;
+    dims.marginTop = marginTop;
     if (typeof updateMarginTop === "function") updateMarginTop();
     return chart;
   };
@@ -1776,7 +1843,7 @@ function LineTimeChartSimple() {
   chart.MarginBottom = function (val) {
     if (!arguments.length) return marginBottom;
     marginBottom = val;
-    dims.mB = marginBottom;
+    dims.marginBottom = marginBottom;
     if (typeof updateMarginBottom === "function") updateMarginBottom();
     return chart;
   };
@@ -1841,10 +1908,10 @@ function MultiLineTimeChartSimple() {
     dims = {
       w: width,
       h: height,
-      mR: marginRight,
-      mL: marginLeft,
-      mT: marginTop,
-      mB: marginBottom,
+      marginRight: marginRight,
+      marginLeft: marginLeft,
+      marginTop: marginTop,
+      marginBottom: marginBottom,
     },
     colour = d3.scaleOrdinal(),
     colourDomain = ["A", "B", "C"],
@@ -1872,8 +1939,8 @@ function MultiLineTimeChartSimple() {
   function chart(selection) {
     selection.each(function () {
       //
-      var boundedWidth = dims.w - dims.mR - dims.mL,
-        boundedHeight = dims.h - dims.mT - dims.mB;
+      var boundedWidth = dims.w - dims.marginRight - dims.marginLeft,
+        boundedHeight = dims.h - dims.marginTop - dims.marginBottom;
       //
       var chartColour = colour.domain(colourDomain).range(colourRange);
       //
@@ -2141,7 +2208,7 @@ function MultiLineTimeChartSimple() {
   chart.MarginLeft = function (val) {
     if (!arguments.length) return marginLeft;
     marginLeft = val;
-    dims.mL = marginLeft;
+    dims.marginLeft = marginLeft;
     if (typeof updateMarginLeft === "function") updateMarginLeft();
     return chart;
   };
@@ -2149,7 +2216,7 @@ function MultiLineTimeChartSimple() {
   chart.MarginRight = function (val) {
     if (!arguments.length) return marginRight;
     marginRight = val;
-    dims.mR = marginRight;
+    dims.marginRight = marginRight;
     if (typeof updateMarginRight === "function") updateMarginRight();
     return chart;
   };
@@ -2157,7 +2224,7 @@ function MultiLineTimeChartSimple() {
   chart.MarginTop = function (val) {
     if (!arguments.length) return marginTop;
     marginTop = val;
-    dims.mT = marginTop;
+    dims.marginTop = marginTop;
     if (typeof updateMarginTop === "function") updateMarginTop();
     return chart;
   };
@@ -2165,7 +2232,7 @@ function MultiLineTimeChartSimple() {
   chart.MarginBottom = function (val) {
     if (!arguments.length) return marginBottom;
     marginBottom = val;
-    dims.mB = marginBottom;
+    dims.marginBottom = marginBottom;
     if (typeof updateMarginBottom === "function") updateMarginBottom();
     return chart;
   };
@@ -2220,10 +2287,10 @@ function SingleHorzBarChart() {
     dims = {
       w: width,
       h: height,
-      mR: marginRight,
-      mL: marginLeft,
-      mT: marginTop,
-      mB: marginBottom,
+      marginRight: marginRight,
+      marginLeft: marginLeft,
+      marginTop: marginTop,
+      marginBottom: marginBottom,
     },
     withHover = false,
     hoverEvent = "",
@@ -2252,8 +2319,8 @@ function SingleHorzBarChart() {
   function chart(selection) {
     //
     selection.each(function () {
-      var boundedWidth = dims.w - dims.mR - dims.mL,
-        boundedHeight = dims.h - dims.mT - dims.mB,
+      var boundedWidth = dims.w - dims.marginRight - dims.marginLeft,
+        boundedHeight = dims.h - dims.marginTop - dims.marginBottom,
         barPadding = 0.1,
         barSpacing = boundedHeight / data.length,
         barHeight = barSpacing - barPadding;
@@ -2455,7 +2522,7 @@ function SingleHorzBarChart() {
   chart.MarginLeft = function (val) {
     if (!arguments.length) return marginLeft;
     marginLeft = val;
-    dims.mL = marginLeft;
+    dims.marginLeft = marginLeft;
     if (typeof updateMarginLeft === "function") updateMarginLeft();
     return chart;
   };
@@ -2463,7 +2530,7 @@ function SingleHorzBarChart() {
   chart.MarginRight = function (val) {
     if (!arguments.length) return marginRight;
     marginRight = val;
-    dims.mR = marginRight;
+    dims.marginRight = marginRight;
     if (typeof updateMarginRight === "function") updateMarginRight();
     return chart;
   };
@@ -2471,7 +2538,7 @@ function SingleHorzBarChart() {
   chart.MarginTop = function (val) {
     if (!arguments.length) return marginTop;
     marginTop = val;
-    dims.mT = marginTop;
+    dims.marginTop = marginTop;
     if (typeof updateMarginTop === "function") updateMarginTop();
     return chart;
   };
@@ -2479,7 +2546,7 @@ function SingleHorzBarChart() {
   chart.MarginBottom = function (val) {
     if (!arguments.length) return marginBottom;
     marginBottom = val;
-    dims.mB = marginBottom;
+    dims.marginBottom = marginBottom;
     if (typeof updateMarginBottom === "function") updateMarginBottom();
     return chart;
   };
@@ -2538,10 +2605,10 @@ function LineAndBarChartSimple() {
     dims = {
       w: width,
       h: height,
-      mR: marginRight,
-      mL: marginLeft,
-      mT: marginTop,
-      mB: marginBottom,
+      marginRight: marginRight,
+      marginLeft: marginLeft,
+      marginTop: marginTop,
+      marginBottom: marginBottom,
     },
     strokeColour = "green",
     strokeWidth = 1.5,
@@ -2562,8 +2629,8 @@ function LineAndBarChartSimple() {
     selection.each(function () {
       //
       //
-      var boundedWidth = dims.w - dims.mR - dims.mL,
-        boundedHeight = dims.h - dims.mT - dims.mB,
+      var boundedWidth = dims.w - dims.marginRight - dims.marginLeft,
+        boundedHeight = dims.h - dims.marginTop - dims.marginBottom,
         barPadding = 0.1,
         barSpacing = boundedHeight / data.length,
         barHeight = barSpacing - barPadding;
@@ -2762,7 +2829,7 @@ function LineAndBarChartSimple() {
   chart.MarginLeft = function (val) {
     if (!arguments.length) return marginLeft;
     marginLeft = val;
-    dims.mL = marginLeft;
+    dims.marginLeft = marginLeft;
     if (typeof updateMarginLeft === "function") updateMarginLeft();
     return chart;
   };
@@ -2770,7 +2837,7 @@ function LineAndBarChartSimple() {
   chart.MarginRight = function (val) {
     if (!arguments.length) return marginRight;
     marginRight = val;
-    dims.mR = marginRight;
+    dims.marginRight = marginRight;
     if (typeof updateMarginRight === "function") updateMarginRight();
     return chart;
   };
@@ -2778,7 +2845,7 @@ function LineAndBarChartSimple() {
   chart.MarginTop = function (val) {
     if (!arguments.length) return marginTop;
     marginTop = val;
-    dims.mT = marginTop;
+    dims.marginTop = marginTop;
     if (typeof updateMarginTop === "function") updateMarginTop();
     return chart;
   };
@@ -2786,7 +2853,7 @@ function LineAndBarChartSimple() {
   chart.MarginBottom = function (val) {
     if (!arguments.length) return marginBottom;
     marginBottom = val;
-    dims.mB = marginBottom;
+    dims.marginBottom = marginBottom;
     if (typeof updateMarginBottom === "function") updateMarginBottom();
     return chart;
   };
@@ -2833,10 +2900,10 @@ function HeatMapBlockedSimple() {
     dims = {
       w: width,
       h: height,
-      mR: marginRight,
-      mL: marginLeft,
-      mT: marginTop,
-      mB: marginBottom,
+      marginRight: marginRight,
+      marginLeft: marginLeft,
+      marginTop: marginTop,
+      marginBottom: marginBottom,
     },
     cell_spacing = 0.1;
   //
@@ -2852,8 +2919,8 @@ function HeatMapBlockedSimple() {
   function chart(selection) {
     selection.each(function () {
       //
-      var boundedWidth = dims.w - dims.mR - dims.mL,
-        boundedHeight = dims.h - dims.mT - dims.mB;
+      var boundedWidth = dims.w - dims.marginRight - dims.marginLeft,
+        boundedHeight = dims.h - dims.marginTop - dims.marginBottom;
       //
       if (!data) {
         return;
@@ -2872,7 +2939,7 @@ function HeatMapBlockedSimple() {
       //
       //
       //
-      var bandScaleSymLog = d3
+      var bandScaleSymarginLeftog = d3
         .scaleSymlog()
         .domain(with_time ? [0, date_extent] : extent)
         .constant(0.1)
@@ -3131,7 +3198,7 @@ function HeatMapBlockedSimple() {
   chart.MarginLeft = function (val) {
     if (!arguments.length) return marginLeft;
     marginLeft = val;
-    dims.mL = marginLeft;
+    dims.marginLeft = marginLeft;
     if (typeof updateMarginLeft === "function") updateMarginLeft();
     return chart;
   };
@@ -3139,7 +3206,7 @@ function HeatMapBlockedSimple() {
   chart.MarginRight = function (val) {
     if (!arguments.length) return marginRight;
     marginRight = val;
-    dims.mR = marginRight;
+    dims.marginRight = marginRight;
     if (typeof updateMarginRight === "function") updateMarginRight();
     return chart;
   };
@@ -3147,7 +3214,7 @@ function HeatMapBlockedSimple() {
   chart.MarginTop = function (val) {
     if (!arguments.length) return marginTop;
     marginTop = val;
-    dims.mT = marginTop;
+    dims.marginTop = marginTop;
     if (typeof updateMarginTop === "function") updateMarginTop();
     return chart;
   };
@@ -3155,7 +3222,7 @@ function HeatMapBlockedSimple() {
   chart.MarginBottom = function (val) {
     if (!arguments.length) return marginBottom;
     marginBottom = val;
-    dims.mB = marginBottom;
+    dims.marginBottom = marginBottom;
     if (typeof updateMarginBottom === "function") updateMarginBottom();
     return chart;
   };
@@ -3164,6 +3231,8 @@ function HeatMapBlockedSimple() {
   return chart;
 }
 //
+//
+
 //
 //
 //

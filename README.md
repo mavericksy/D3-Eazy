@@ -6,9 +6,9 @@ _*EXPECT THE API TO CHANGE*_
 
 Wrapper around D3 charts using the general update pattern.
 
-Many thanks to Rob Moore at Toptal for his [Updatable Charts](https://www.toptal.com/d3-js/towards-reusable-d3-js-charts) article.
+This library attempts to insulate the user from the complexities of the D3 library while still making the D3 API accessible with much of the power available and a few extras on top.
 
-Using the library is pretty simple.
+The General Update Pattern allows the user to change the charts in real-time and create beautiful, dynamic charts easily.
 
 A simple bar chart can be created like this:
 
@@ -68,3 +68,7 @@ One change to the chained functions (Orient("horizontal")) will produce this cha
 Grouped Bar Chart:
 
 ![Simple Grouped Bar Chart Horizontal](docs/imgs/groupedBarChartSimpleOne.png)
+
+## CREDITS
+
+Many thanks to Rob Moore at Toptal for his [Updatable Charts](https://www.toptal.com/d3-js/towards-reusable-d3-js-charts) article.
