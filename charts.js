@@ -13,20 +13,19 @@ function responsivefy(svg) {
     width = parseInt(parent.width, 10),
     height = parseInt(parent.height, 10),
     aspect = width / height;
+  //
   svg
     .attr("viewBox", "0 0 " + width + " " + height)
     .attr("perserveAspectRatio", "xMinYMid meet")
     .call(resize);
+  //
   function resize(evt) {
     var base = container._groups[0][0];
     var parent = base.getBoundingClientRect();
     var targetWidth = parseInt(parent.width, 10);
     var targetHeight = Math.round(targetWidth / aspect);
-    base.setAttribute("width", targetWidth);
-    base.setAttribute("height", targetHeight);
     svg.attr("width", targetWidth);
     svg.attr("height", targetHeight);
-    //svg.attr("viewBox", "0 0 " + targetWidth + " " + targetHeight);
   }
   d3.select(window).on("resize." + container.attr("id"), resize);
 }
@@ -66,6 +65,8 @@ const base_variables = {
 const base_update = {};
 //
 // TODO: ALL VARIABLES BETTER NAMES
+// TODO: RETURN THE TOP-LEVEL SVG
+//
 function BarChartSimple(name) {
   //
   var band,
@@ -75,6 +76,8 @@ function BarChartSimple(name) {
     // Horizontal: Band is X axis, Val is Y axis
     // Vertical:   Band is Y Axis, Val is X axis
     orient = "horizontal",
+    // reverse along logical lines
+    flip = false,
     //
     band_domain = [],
     band_accessor = (d) => d.key,
@@ -196,6 +199,23 @@ function BarChartSimple(name) {
         .append("g")
         .attr("transform", `translate(0,0)`);
       //
+      var bottomGen = d3
+        .axisBottom(orient === "vertical" ? val_linear : quant_band)
+        .ticks(4);
+      var leftGen = d3
+        .axisLeft(orient === "vertical" ? quant_band : val_linear)
+        .ticks(5);
+      orient === "vertical"
+        ? leftGen.tickFormat((d, i) =>
+            domainAsObj ? band_domain[i].val : band_domain[i],
+          )
+        : bottomGen.tickFormat((d, i) =>
+            domainAsObj ? band_domain[i].val : band_domain[i],
+          );
+      //
+      bottomAxis.call(bottomGen);
+      leftAxis.call(leftGen);
+      //
       //
       function transitionDims(svg) {
         if (orient === "vertical") {
@@ -310,30 +330,17 @@ function BarChartSimple(name) {
       }
       //
       //
-      var bottomGen = d3
-        .axisBottom(orient === "vertical" ? val_linear : quant_band)
-        .ticks(4);
-      var leftGen = d3
-        .axisLeft(orient === "vertical" ? quant_band : val_linear)
-        .ticks(5);
-      orient === "vertical"
-        ? leftGen.tickFormat((d, i) =>
-            domainAsObj ? band_domain[i].val : band_domain[i],
-          )
-        : bottomGen.tickFormat((d, i) =>
-            domainAsObj ? band_domain[i].val : band_domain[i],
-          );
-      //
-      bottomAxis.call(bottomGen);
-      leftAxis.call(leftGen);
+
       //
       //
       // Duplication
+      // TODO: remove the functionality below to update* fns
       updateData = function () {
         //
         quant_band.domain(data.map((d) => band(d)));
         val_linear.domain([0, d3.max(data, (d) => val(d))]);
         //
+        // TODO: fn
         var bottomGen = d3
           .axisBottom(orient === "vertical" ? val_linear : quant_band)
           .ticks(4);
@@ -348,6 +355,7 @@ function BarChartSimple(name) {
           .axisLeft(orient === "vertical" ? quant_band : val_linear)
           .ticks(5);
         leftAxis.transition().duration(800).call(leftGen);
+        //
         //
         function updateDims(svg) {
           if (orient === "vertical") {
@@ -427,6 +435,7 @@ function BarChartSimple(name) {
                   orient == "vertical"
                     ? textDeltaY
                     : // offset to account for height of font
+                      // TODO: find font relative size anf use as offset
                       textDeltaY * 2 * -1,
                 )
                 .attr("fill", textFill[1])
@@ -995,8 +1004,8 @@ function DonutChartSimple() {
     marginBottom = 0,
     marginTop = 0,
     dims = {
-      w: width,
-      h: height,
+      width: width,
+      height: height,
       marginRight: marginRight,
       marginLeft: marginLeft,
       marginTop: marginTop,
@@ -1006,8 +1015,8 @@ function DonutChartSimple() {
     colourDomain = ["A", "B"],
     colourRange = d3.schemePaired,
     chartColour,
-    outerRadiusArc = dims.w / 3,
-    innerRadiusArc = dims.w / 8,
+    outerRadiusArc = dims.width / 3,
+    innerRadiusArc = dims.width / 8,
     shadowWidth = 10,
     outerRadiusArcShadow = innerRadiusArc + 1,
     innerRadiusArcShadow = innerRadiusArc - shadowWidth,
@@ -1030,16 +1039,18 @@ function DonutChartSimple() {
   //
   //
   createChart = function (svg, dt, fn, outRad, inRad, fillFunc, clsName) {
+    //
     var arcIn = d3.arc().innerRadius(outRad).outerRadius(inRad);
-
+    //
     var path = svg
+      .select("g")
       .selectAll("." + clsName)
       .data(fn(dt))
       .join("path")
       .attr("class", clsName)
       .attr("d", arcIn)
       .attr("fill", fillFunc);
-
+    //
     path
       .transition()
       .duration(1000)
@@ -1056,22 +1067,20 @@ function DonutChartSimple() {
     //
     selection.each(function () {
       //
-      var boundedWidth = dims.w - dims.marginRight - dims.marginLeft,
-        boundedHeight = dims.h - dims.marginTop - dims.marginBottom,
+      var boundedWidth = dims.width - dims.marginRight - dims.marginLeft,
+        boundedHeight = dims.height - dims.marginTop - dims.marginBottom,
         outerRadiusArcShadow = innerRadiusArc + 1,
         innerRadiusArcShadow = innerRadiusArc - shadowWidth;
       //
-      svg = getBaseSVG(
-        this,
-        svg_id,
-        (function (_d) {
-          return {
-            marginLeft: boundedWidth / 2 + _d.marginLeft,
-            marginTop: boundedHeight / 2 + _d.marginTop,
-          };
-        })(dims),
-        responsivefy,
-      );
+      svg = getBaseSVG(this, svg_id, dims, responsivefy);
+      //
+      svg
+        .append("g")
+        .attr("width", svg.attr("width"))
+        .attr(
+          "transform",
+          `translate(${dims.marginLeft + boundedWidth / 2},${dims.marginTop + boundedHeight / 2})`,
+        );
       //
       chartColour = colour.domain(colourDomain).range(colourRange);
       //
@@ -1109,6 +1118,7 @@ function DonutChartSimple() {
       );
       //
       svg
+        .select("g")
         .append("g")
         .attr("font-family", "sans-serif")
         .attr("font-size", 12)
@@ -1143,6 +1153,7 @@ function DonutChartSimple() {
         );
       //
       svg
+        .select("g")
         .append("text")
         .text(centerText)
         .attr("text-anchor", "middle")
@@ -3232,7 +3243,67 @@ function HeatMapBlockedSimple() {
 }
 //
 //
-
+function CircularHeatChartSimple() {
+  var data,
+    dataAccessor = (d) => d,
+    svgId,
+    innerRadius = 50,
+    numSegments = 24,
+    segmentHeight = 20,
+    valDomain = [],
+    colourRange = ["white", "red"],
+    radialLabels = [],
+    segmentLabels = [],
+    width = 800,
+    height = 600,
+    dims = {
+      offset: 0,
+      width: width,
+      height: height,
+      marginLeft: 0,
+      marginTop: 0,
+      marginRight: 0,
+      marginBottom: 0,
+    };
+  //
+  function chart(selection) {
+    //
+    selection.each(function () {
+      //
+      var boundedWidth = dims.width - dims.marginLeft - dims.marginRight,
+        boundedHeight = dims.height - dims.marginTop - marginBottom;
+      dims.offset =
+        innerRadius + Math.ceil(data.length / numSegments) * segmentHeight;
+      //
+      //
+      var svg = getBaseSVG(this, svg_id, dims, responsivefy);
+      svg
+        .append("g")
+        .attr("width", svg.attr("width"))
+        .attr(
+          "transform",
+          `translate(${dims.marginLeft + dims.offset},${dims.marginTop + dims.offset})`,
+        );
+      //
+      //
+    });
+    //
+    //
+    chart.Data = function (val) {
+      if (!arguments.length) return data;
+      data = val;
+      if (typeof updateData === "function") updateData();
+      return chart;
+    };
+    //
+    chart.SvgID = function (val) {
+      if (!arguments.length) return svg_id;
+      svg_id = val;
+      return chart;
+    };
+  }
+  return chart;
+}
 //
 //
 //
@@ -3246,4 +3317,5 @@ export {
   LineAndBarChartSimple,
   HeatMapBlockedSimple,
   LineLinearSpark,
+  CircularHeatChartSimple,
 };

@@ -1,14 +1,18 @@
 import * as d3 from "d3";
-import { BarChartSimple, GroupedBarChartSimple } from "../charts.js";
+import {
+  BarChartSimple,
+  GroupedBarChartSimple,
+  DonutChartSimple,
+} from "../charts.js";
 import { ready } from "../events.js";
 
 ready(function () {
   //
   var dataset = [
-    { name: "JS", value: 32, nice: 16 },
+    { name: "JS", value: 52, nice: 46 },
     { name: "GO", value: 301, nice: 202 },
     { name: "C", value: 182, nice: 120 },
-    { name: "Rust", value: 71, nice: 10 },
+    { name: "Rust", value: 31, nice: 10 },
     { name: "Zig", value: 101, nice: 60 },
     { name: "Common Lisp", value: 400, nice: 350 },
   ];
@@ -17,6 +21,7 @@ ready(function () {
   var domain = d3.sort(dataset, (d) => -d.value).map((d) => d.name);
   //
   const elone = "barChartSimpleOne";
+  const eloneflipped = "barChartSimpleOneFlipped";
   const rect = document.getElementById(elone).getBoundingClientRect();
   const width = rect.width;
   const height = rect.height;
@@ -37,10 +42,10 @@ ready(function () {
     .ColourRange(d3.schemeTableau10)
     .Width(width)
     .Height(height)
-    .MarginTop(0)
-    .MarginBottom(0)
+    .MarginTop(5)
+    .MarginBottom(15)
     .MarginLeft(80)
-    .MarginRight(0)
+    .MarginRight(5)
     .CornerRadiusX(2)
     .Data(dataset);
   //.DataMax((d) => d.value)
@@ -48,6 +53,7 @@ ready(function () {
   //.DataSort((d) => -d.value)
   //
   d3.select("#" + elone).call(TheBarOne);
+  //
   //
   //
   var eltwo = "barChartSimpleTwo";
@@ -104,10 +110,28 @@ ready(function () {
     .MarginLeft(80)
     .MarginRight(0)
     .ColourDomain(domainGrouped)
-    .WithText(true)
     .Data(dataset);
   //
   d3.select("#" + elGroupedBar).call(TheGroupedBarOne);
   //
   //
+  const elDonut = "donutChartSimpleOne";
+  const donutOne = document.getElementById(elDonut).getBoundingClientRect();
+  const widthDonut = donutOne.width;
+  const heightDonut = donutOne.height;
+
+  const domainDonut = d3.sort(dataset, (d) => -d.nice).map((d) => d.name);
+  const maxDonut = d3.max(dataset, (d) => d.nice);
+
+  var TheDonutOne = DonutChartSimple()
+    .SvgID("donutChartOne")
+    .Width(widthDonut)
+    .Height(heightDonut)
+    .ColourRange(d3.schemeTableau10)
+    .ColourDomain(domainDonut)
+    .Val((a) => a.nice)
+    .Key((a) => a.name)
+    .Data(dataset);
+  //
+  d3.select("#" + elDonut).call(TheDonutOne);
 });

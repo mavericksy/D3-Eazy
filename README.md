@@ -15,12 +15,12 @@ A simple bar chart can be created like this:
 ```javascript
 var el = "barChartSimpleOne";
 var dataset = [
-  { key: "JS", value: 32 },
-  { key: "GO", value: 301 },
-  { key: "Rust", value: 71 },
-  { key: "C", value: 182 },
-  { key: "Zig", value: 101 },
-  { key: "Common Lisp", value: 400 },
+  { name: "JS", value: 32, nice: 16 },
+  { name: "GO", value: 301, nice: 202 },
+  { name: "C", value: 182, nice: 120 },
+  { name: "Rust", value: 71, nice: 10 },
+  { name: "Zig", value: 101, nice: 60 },
+  { name: "Common Lisp", value: 400, nice: 350 },
 ];
 //
 const rect = document.getElementById(el).getBoundingClientRect();
@@ -28,7 +28,7 @@ const width = rect.width;
 const height = rect.height;
 //
 var max = d3.max(dataset, (d) => d.value);
-var domain = d3.sort(dataset, (d) => -d.value).map((d) => d.key);
+var domain = d3.sort(dataset, (d) => -d.value).map((d) => d.name);
 //
 var TheBar = BarChartSimple()
   .SvgID("thebar")
@@ -36,7 +36,7 @@ var TheBar = BarChartSimple()
     return a.value;
   })
   .Band(function (a) {
-    return a.key;
+    return a.name;
   })
   .Orient("vertical")
   .DomainBand(domain)
@@ -71,4 +71,6 @@ Grouped Bar Chart:
 
 ## CREDITS
 
-Many thanks to Rob Moore at Toptal for his [Updatable Charts](https://www.toptal.com/d3-js/towards-reusable-d3-js-charts) article.
+Mike Bostock for [D3 Reusable Charts](https://bost.ocks.org/mike/chart/).
+
+Rob Moore at Toptal for [Updatable Charts](https://www.toptal.com/d3-js/towards-reusable-d3-js-charts).
