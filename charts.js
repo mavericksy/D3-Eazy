@@ -1062,18 +1062,22 @@ function DonutChartSimple() {
       });
   };
   //
-
   function chart(selection) {
     //
     selection.each(function () {
       //
       var boundedWidth = dims.width - dims.marginRight - dims.marginLeft,
-        boundedHeight = dims.height - dims.marginTop - dims.marginBottom,
-        outerRadiusArcShadow = innerRadiusArc + 1,
-        innerRadiusArcShadow = innerRadiusArc - shadowWidth;
+          boundedHeight = dims.height - dims.marginTop - dims.marginBottom;
+      //
+      // fixes the aspect ratio
+      dims.width = (dims.width >= dims.height) ? dims.height : dims.width;
+      var
+          outerRadiusArc = dims.width / 3,
+          innerRadiusArc = dims.width / 8,
+          outerRadiusArcShadow = innerRadiusArc + 1,
+          innerRadiusArcShadow = innerRadiusArc - shadowWidth;
       //
       svg = getBaseSVG(this, svg_id, dims, responsivefy);
-      //
       svg
         .append("g")
         .attr("width", svg.attr("width"))
@@ -1223,6 +1227,8 @@ function DonutChartSimple() {
               .attr("fill-opacity", 1),
           );
       };
+      //
+      updateData = function () {};
       updateVal = function () {};
       updateValText = function () {};
       updateKey = function () {};
@@ -1268,7 +1274,7 @@ function DonutChartSimple() {
   chart.Width = function (val) {
     if (!arguments.length) return width;
     width = val;
-    dims.w = val;
+    dims.width = val;
     if (typeof updateWidth === "function") updateWidth();
     return chart;
   };
@@ -1276,7 +1282,7 @@ function DonutChartSimple() {
   chart.Height = function (val) {
     if (!arguments.length) return width;
     height = val;
-    dims.h = val;
+    dims.height = val;
     if (typeof updateHeight === "function") updateWidth();
     return chart;
   };
@@ -1358,15 +1364,15 @@ function LineLinearSpark() {
     val_domain,
     linear_accessor,
     val_accessor,
-    width = 800,
-    height = 600,
+    width = undefined,
+    height = undefined,
     marginLeft = 0,
     marginRight = 0,
     marginBottom = 0,
     marginTop = 0,
     dims = {
-      w: width,
-      h: height,
+      width: width,
+      height: height,
       marginRight: marginRight,
       marginLeft: marginLeft,
       marginTop: marginTop,
@@ -1382,8 +1388,12 @@ function LineLinearSpark() {
   function chart(selection) {
     selection.each(function () {
       //
-      var boundedWidth = dims.w - dims.marginRight - dims.marginLeft,
-        boundedHeight = dims.h - dims.marginTop - dims.marginBottom;
+      if(!height || !width) {
+       
+      }
+      //
+      var boundedWidth = dims.weight - dims.marginRight - dims.marginLeft,
+        boundedHeight = dims.height - dims.marginTop - dims.marginBottom;
       //
       var svg = getBaseSVG(this, svg_id, dims, responsivefy);
       //
@@ -1635,7 +1645,7 @@ function LineLinearSpark() {
   chart.Width = function (val) {
     if (!arguments.length) return width;
     width = val;
-    dims.w = val;
+    dims.width = val;
     if (typeof updateWidth === "function") updateWidth();
     return chart;
   };
@@ -1643,7 +1653,7 @@ function LineLinearSpark() {
   chart.Height = function (val) {
     if (!arguments.length) return width;
     height = val;
-    dims.h = val;
+    dims.height = val;
     if (typeof updateHeight === "function") updateWidth();
     return chart;
   };

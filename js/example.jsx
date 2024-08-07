@@ -21,11 +21,9 @@ ready(function () {
   var domain = d3.sort(dataset, (d) => -d.value).map((d) => d.name);
   //
   const elone = "barChartSimpleOne";
-  const eloneflipped = "barChartSimpleOneFlipped";
   const rect = document.getElementById(elone).getBoundingClientRect();
   const width = rect.width;
   const height = rect.height;
-  console.log("BARONE", width, height, rect);
   //
   var TheBarOne = BarChartSimple()
     .SvgID("thebarone")
@@ -93,8 +91,6 @@ ready(function () {
   const widthGrouped = groupedOne.width;
   const heightGrouped = groupedOne.height;
   //
-  console.log(widthGrouped, heightGrouped);
-  //
   const domainGrouped = d3.sort(dataset, (d) => -d.value).map((d) => d.name);
   const maxGrouped = d3.max(dataset, (d) => d.value);
   //
@@ -130,8 +126,31 @@ ready(function () {
     .ColourRange(d3.schemeTableau10)
     .ColourDomain(domainDonut)
     .Val((a) => a.nice)
+    .ValText((a)=> a.nice)
     .Key((a) => a.name)
     .Data(dataset);
   //
   d3.select("#" + elDonut).call(TheDonutOne);
+  //
+  //
+  const elDonutTwo = "donutChartSimpleTwo";
+  const donutTwo = document.getElementById(elDonutTwo).getBoundingClientRect();
+  const widthDonutTwo = donutTwo.width;
+  const heightDonutTwo = donutTwo.height;
+
+  const domainDonutTwo = d3.sort(dataset, (d) => -d.value).map((d) => d.name);
+  const maxDonutTwo = d3.max(dataset, (d) => d.value);
+
+  var TheDonutTwo = DonutChartSimple()
+    .SvgID("donutChartTwo")
+    .Width(widthDonutTwo)
+    .Height(heightDonutTwo)
+    .ColourRange(d3.schemeTableau10)
+    .ColourDomain(domainDonutTwo)
+    .Val((a) => a.value)
+    .ValText((a)=> a.value)
+    .Key((a) => a.name)
+    .Data(dataset);
+  //
+  d3.select("#" + elDonutTwo).call(TheDonutTwo);
 });
