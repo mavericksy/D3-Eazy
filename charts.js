@@ -777,7 +777,9 @@ function GroupedBarChartSimple() {
       var groupBand = d3
         .scaleBand()
         .domain(band_domain)
-        .rangeRound([0, boundedWidth])
+        .rangeRound((orient == "vertical")
+                    ? [0, boundedHeight]
+                    : [0, boundedWidth])
         .paddingInner(barGroupPadding);
       //
       var subGroupBand = d3
@@ -790,9 +792,12 @@ function GroupedBarChartSimple() {
         .scaleLinear()
         .domain(val_domain)
         .nice()
-        .rangeRound([boundedHeight, 0]);
+        .rangeRound((orient == "vertical") ? [0, boundedWidth] : [boundedHeight, 0]);
       //
       //
+      const translated = (orient == "vertical")
+            ? (d) => `translate(0,${groupBand(group_accessor(d))})`
+            : (d) => `translate(${groupBand(group_accessor(d))}, 0)` ;
       let groupedBarsData = svg
         .select("g")
         .append("g")
@@ -802,7 +807,7 @@ function GroupedBarChartSimple() {
         .join("g")
         .attr(
           "transform",
-          (d) => `translate(${groupBand(group_accessor(d))}, 0)`,
+          (d) => translated(d),
         )
         .selectAll("rect")
         .data(function (d) {
@@ -810,20 +815,31 @@ function GroupedBarChartSimple() {
             return { key: key, value: d[key], name: group_accessor(d) };
           });
         });
-
+      //
       var groupBarsRect = groupedBarsData
         .join("rect")
-        .attr("x", (d) => subGroupBand(d.key) + subGroupBand.bandwidth() / 2)
-        .attr("y", (d) => boundedHeight)
-        .attr("width", 0)
+        .attr("x", (d) => (orient == "vertical")
+              ? 0
+              : subGroupBand(d.key) + subGroupBand.bandwidth() / 2)
+        .attr("y", (d) => (orient == "vertical")
+              ? subGroupBand(d.key) + subGroupBand.bandwidth() / 2
+              : boundedHeight)
         .attr("fill", (d) => chartColour(d.name))
         .transition()
         .duration(700)
         .ease(d3.easeLinear)
-        .attr("height", (d) => boundedHeight - val_linear(d.value))
-        .attr("y", (d) => val_linear(d.value))
-        .attr("width", subGroupBand.bandwidth())
-        .attr("x", (d) => subGroupBand(d.key));
+        .attr("height", (d) => (orient == "vertical")
+              ? subGroupBand.bandwidth()
+              : boundedHeight - val_linear(d.value))
+        .attr("y", (d) => (orient == "vertical")
+              ? subGroupBand(d.key)
+              : val_linear(d.value))
+        .attr("width", (d) => (orient == "vertical")
+              ? val_linear(d.value)
+              : subGroupBand.bandwidth())
+        .attr("x", (d) => (orient == "vertical")
+              ? 0
+              : subGroupBand(d.key));
       //
       if (withText) {
         var groupBarsText = groupedBarsData
@@ -846,17 +862,27 @@ function GroupedBarChartSimple() {
           .attr("font-size", (d) => subGroupBand.bandwidth() / 4);
       }
       //
+      const band_offset = (orient == "vertical")
+            ? 0
+            : boundedHeight;
       svg
         .select("g")
         .append("g")
-        .attr("transform", `translate(0,${boundedHeight})`)
-        .call(d3.axisBottom(groupBand).tickSizeOuter(0));
+        .attr("transform", `translate(0,${band_offset})`)
+        .call((orient == "vertical")
+              ? d3.axisLeft(groupBand)
+              : d3.axisBottom(groupBand).tickSizeOuter(0));
       //
+      const linear_offset = (orient == "vertical")
+        ? boundedHeight
+        : 0;
       svg
         .select("g")
         .append("g")
-        .attr("transform", `translate(0,0)`)
-        .call(d3.axisLeft(val_linear));
+        .attr("transform", `translate(0,${linear_offset})`)
+        .call((orient == "vertical")
+              ? d3.axisBottom(val_linear)
+              : d3.axisLeft(val_linear));
       //
       //
       updateData = function () {};
@@ -879,6 +905,13 @@ function GroupedBarChartSimple() {
       //
     });
   }
+  //
+  chart.Orient = function(val) {
+    if(!arguments.length) return orient;
+    orient = val;
+    if(typeof updateOrient === 'function') updateOrient();
+    return chart;
+  };
   //
   chart.SvgID = function (val) {
     if (!arguments.length) return svg_id;
@@ -986,7 +1019,7 @@ function GroupedBarChartSimple() {
   //
   return chart;
 }
-
+//
 //
 function DonutChartSimple() {
   var svg_id = "",
@@ -1914,6 +1947,7 @@ function LineTimeChartSimple() {
   return chart;
 }
 //
+//
 function MultiLineTimeChartSimple() {
   //
   var data = [],
@@ -2602,7 +2636,6 @@ function SingleHorzBarChart() {
   //
   return chart;
 }
-//
 //
 //
 function LineAndBarChartSimple() {
@@ -3314,7 +3347,6 @@ function CircularHeatChartSimple() {
   }
   return chart;
 }
-//
 //
 //
 export {

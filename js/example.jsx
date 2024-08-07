@@ -109,6 +109,33 @@ ready(function () {
     .Data(dataset);
   //
   d3.select("#" + elGroupedBar).call(TheGroupedBarOne);
+ //
+  //
+  //
+  const elGroupedBarTwo = "groupedBarChartSimpleTwo";
+  const groupedTwo = document
+    .getElementById(elGroupedBarTwo)
+    .getBoundingClientRect();
+  const widthGroupedTwo = groupedTwo.width;
+  const heightGroupedTwo = groupedTwo.height;
+  //
+  var TheGroupedBarTwo = GroupedBarChartSimple()
+    .SvgID("groupedBarTwo")
+    .Orient("vertical")
+    .Band(domainGrouped)
+    .Subgroup(["value", "nice"])
+    .DomainVal([0, maxGrouped])
+    .Width(widthGroupedTwo)
+    .Height(heightGroupedTwo)
+    .MarginTop(40)
+    .MarginBottom(0)
+    .MarginLeft(80)
+    .MarginRight(0)
+    .ColourDomain(domainGrouped)
+    .Data(dataset);
+  //
+  d3.select("#" + elGroupedBarTwo).call(TheGroupedBarTwo);
+  //
   //
   //
   const elDonut = "donutChartSimpleOne";
@@ -117,7 +144,6 @@ ready(function () {
   const heightDonut = donutOne.height;
 
   const domainDonut = d3.sort(dataset, (d) => -d.nice).map((d) => d.name);
-  const maxDonut = d3.max(dataset, (d) => d.nice);
 
   var TheDonutOne = DonutChartSimple()
     .SvgID("donutChartOne")
@@ -139,7 +165,6 @@ ready(function () {
   const heightDonutTwo = donutTwo.height;
 
   const domainDonutTwo = d3.sort(dataset, (d) => -d.value).map((d) => d.name);
-  const maxDonutTwo = d3.max(dataset, (d) => d.value);
 
   var TheDonutTwo = DonutChartSimple()
     .SvgID("donutChartTwo")
