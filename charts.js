@@ -6,7 +6,8 @@ const isUndef = (a, fn) => fn(a) === undefined;
 //
 const debugLog = (l) => console.debug(l);
 //
-// TODO test and tweak responsive charts
+const isVertical = (a) => (a == "vertical");
+//
 function responsivefy(svg) {
   var container = d3.select(svg.node().parentNode),
     parent = container._groups[0][0].getBoundingClientRect(),
@@ -64,6 +65,33 @@ const base_variables = {
 //
 const base_update = {};
 //
+// events stores the global Event router functions mapped to the EventName
+// each function is a callback on the Event to document.body
+// eventable is the GlobalRouter and setup object
+var hovers = new Map();
+const selfCallBack = function(evt) {
+  console.log("EVENTABLE", evt, hovers);
+  if(hovers.has(evt.type)){
+    let cbs = hovers.get(evt.type);
+    for(cb of cbs){
+      cb(evt);
+    }
+  }
+};
+const hoverable = {
+  submit: function(eventString, callBack){
+    if(hovers.has(eventString)){
+      let arr = hovers.get(eventString);
+      arr.append(callBack);
+      hovers.set(eventString, arr);
+      return;
+    } else {
+      hovers.set(eventString, [callBack]);
+    }
+    addEventListener(document.body, eventString, selfCallBack);
+  },
+};
+//
 // TODO: ALL VARIABLES BETTER NAMES
 // TODO: RETURN THE TOP-LEVEL SVG
 //
@@ -76,8 +104,6 @@ function BarChartSimple(name) {
     // Horizontal: Band is X axis, Val is Y axis
     // Vertical:   Band is Y Axis, Val is X axis
     orient = "horizontal",
-    // reverse along logical lines
-    flip = false,
     //
     band_domain = [],
     band_accessor = (d) => d.key,
@@ -176,7 +202,7 @@ function BarChartSimple(name) {
           domainAsObj ? band_domain.map((d) => band_accessor(d)) : band_domain,
         )
         .rangeRound(
-          orient == "vertical" ? [0, boundedHeight] : [0, boundedWidth],
+          isVertical(orient) ? [0, boundedHeight] : [0, boundedWidth],
         )
         .padding(barPadding);
       //
@@ -184,10 +210,10 @@ function BarChartSimple(name) {
       //
       domainRound
         ? val_linear.rangeRound(
-            orient === "vertical" ? [0, boundedWidth] : [boundedHeight, 0],
+            isVertical(orient) ? [0, boundedWidth] : [boundedHeight, 0],
           )
         : val_linear.range(
-            orient === "vertical" ? [0, boundedWidth] : [boundedHeight, 0],
+            isVertical(orient) ? [0, boundedWidth] : [boundedHeight, 0],
           );
       //
       var bottomAxis = svg
@@ -200,12 +226,13 @@ function BarChartSimple(name) {
         .attr("transform", `translate(0,0)`);
       //
       var bottomGen = d3
-        .axisBottom(orient === "vertical" ? val_linear : quant_band)
+        .axisBottom(isVertical(orient) ? val_linear : quant_band)
         .ticks(4);
       var leftGen = d3
-        .axisLeft(orient === "vertical" ? quant_band : val_linear)
+        .axisLeft(isVertical(orient) ? quant_band : val_linear)
         .ticks(5);
-      orient === "vertical"
+      //
+      (isVertical(orient))
         ? leftGen.tickFormat((d, i) =>
             domainAsObj ? band_domain[i].val : band_domain[i],
           )
@@ -218,7 +245,7 @@ function BarChartSimple(name) {
       //
       //
       function transitionDims(svg) {
-        if (orient === "vertical") {
+        if (isVertical(orient)) {
           svg
             .attr("height", 0)
             .attr("y", (d) => quant_band(band(d)) + quant_band.bandwidth() / 2)
@@ -258,12 +285,12 @@ function BarChartSimple(name) {
         .join("rect")
         .attr("fill", (d) => chartColour(band(d)))
         .attr("x", (d) =>
-          orient == "vertical"
+          (isVertical(orient))
             ? val_linear(baseline_offset)
             : quant_band(band(d)),
         )
         .attr("y", (d) =>
-          orient == "vertical" ? quant_band(band(d)) : val_linear(val(d)),
+          (isVertical(orient)) ? quant_band(band(d)) : val_linear(val(d)),
         )
         .attr("rx", corner_radius_x)
         .call(transitionDims);
@@ -279,12 +306,12 @@ function BarChartSimple(name) {
           .join("text")
           .attr("class", "bar-text")
           .attr("x", (d) =>
-            orient == "vertical"
+            (isVertical(orient))
               ? val_linear(0)
               : quant_band(band(d)) + quant_band.bandwidth() / 2,
           )
           .attr("y", (d) =>
-            orient == "vertical"
+            (isVertical(orient))
               ? quant_band(band(d)) + quant_band.bandwidth() / 2
               : boundedHeight,
           )
@@ -300,14 +327,14 @@ function BarChartSimple(name) {
                 var dimm = Math.abs(val_linear(val(d)) - val_linear(0));
                 var is =
                   dimm >
-                  (orient === "vertical" ? boundedWidth : boundedHeight) *
+                    ((isVertical(orient)) ? boundedWidth : boundedHeight) *
                     (barLengthPercentage / 100);
                 return is;
               })
-              .attr("dx", orient == "vertical" ? textDeltaX * -1 : textDeltaX)
+              .attr("dx", isVertical(orient) ? textDeltaX * -1 : textDeltaX)
               .attr(
                 "dy",
-                orient == "vertical" ? textDeltaY : textDeltaY * 2 * -1,
+                (isVertical(orient)) ? textDeltaY : textDeltaY * 2 * -1,
               )
               .attr("fill", textFill[1])
               .attr("text-anchor", textAnchor[1]),
@@ -317,20 +344,17 @@ function BarChartSimple(name) {
           .duration(500)
           .ease(d3.easeLinear)
           .attr("x", (d) =>
-            orient == "vertical"
+            (isVertical(orient))
               ? val_linear(val(d))
               : quant_band(band(d)) + quant_band.bandwidth() / 2,
           )
           .attr("y", (d) =>
-            orient == "vertical"
+            (isVertical(orient))
               ? quant_band(band(d)) + quant_band.bandwidth() / 2
               : val_linear(val(d)),
           )
           .attr("opacity", 1);
       }
-      //
-      //
-
       //
       //
       // Duplication
@@ -342,9 +366,9 @@ function BarChartSimple(name) {
         //
         // TODO: fn
         var bottomGen = d3
-          .axisBottom(orient === "vertical" ? val_linear : quant_band)
-          .ticks(4);
-        orient == "vertical"
+            .axisBottom((isVertical(orient)) ? val_linear : quant_band)
+            .ticks(4);
+        (isVertical(orient))
           ? true
           : bottomGen.tickFormat((d, i) =>
               domainAsObj ? band_domain[i].val : band_domain[i],
@@ -352,13 +376,13 @@ function BarChartSimple(name) {
         bottomAxis.transition().duration(800).call(bottomGen);
         //
         var leftGen = d3
-          .axisLeft(orient === "vertical" ? quant_band : val_linear)
-          .ticks(5);
+            .axisLeft((isVertical(orient)) ? quant_band : val_linear)
+            .ticks(5);
         leftAxis.transition().duration(800).call(leftGen);
         //
         //
         function updateDims(svg) {
-          if (orient === "vertical") {
+          if (isVertical(orient)) {
             svg
               .attr("height", quant_band.bandwidth())
               .attr("y", (d) => quant_band(band(d)))
@@ -403,12 +427,12 @@ function BarChartSimple(name) {
             .join("text")
             .attr("class", "bar-text")
             .attr("x", (d) =>
-              orient == "vertical"
+              isVertical(orient)
                 ? val_linear(val(d))
                 : quant_band(band(d)) + quant_band.bandwidth() / 2,
             )
             .attr("y", (d) =>
-              orient == "vertical"
+              isVertical(orient)
                 ? quant_band(band(d)) + quant_band.bandwidth() / 2
                 : boundedHeight,
             )
@@ -425,14 +449,14 @@ function BarChartSimple(name) {
                   var dimm = Math.abs(val_linear(val(d)) - val_linear(0));
                   var is =
                     dimm >
-                    (orient === "vertical" ? boundedWidth : boundedHeight) *
+                    (isVertical(orient) ? boundedWidth : boundedHeight) *
                       (barLengthPercentage / 100);
                   return is;
                 })
-                .attr("dx", orient == "vertical" ? textDeltaX * -1 : textDeltaX)
+                .attr("dx", isVertical(orient) ? textDeltaX * -1 : textDeltaX)
                 .attr(
                   "dy",
-                  orient == "vertical"
+                  isVertical(orient)
                     ? textDeltaY
                     : // offset to account for height of font
                       // TODO: find font relative size anf use as offset
@@ -446,12 +470,12 @@ function BarChartSimple(name) {
             .duration(500)
             .ease(d3.easeLinear)
             .attr("x", (d) =>
-              orient == "vertical"
+              isVertical(orient)
                 ? val_linear(val(d))
                 : quant_band(band(d)) + quant_band.bandwidth() / 2,
             )
             .attr("y", (d) =>
-              orient == "vertical"
+              isVertical(orient)
                 ? quant_band(band(d)) + quant_band.bandwidth() / 2
                 : val_linear(val(d)),
             )
@@ -777,7 +801,7 @@ function GroupedBarChartSimple() {
       var groupBand = d3
         .scaleBand()
         .domain(band_domain)
-        .rangeRound((orient == "vertical")
+        .rangeRound((isVertical(orient))
                     ? [0, boundedHeight]
                     : [0, boundedWidth])
         .paddingInner(barGroupPadding);
@@ -792,10 +816,10 @@ function GroupedBarChartSimple() {
         .scaleLinear()
         .domain(val_domain)
         .nice()
-        .rangeRound((orient == "vertical") ? [0, boundedWidth] : [boundedHeight, 0]);
+        .rangeRound((isVertical(orient)) ? [0, boundedWidth] : [boundedHeight, 0]);
       //
       //
-      const translated = (orient == "vertical")
+      const translated = (isVertical(orient))
             ? (d) => `translate(0,${groupBand(group_accessor(d))})`
             : (d) => `translate(${groupBand(group_accessor(d))}, 0)` ;
       let groupedBarsData = svg
@@ -818,26 +842,26 @@ function GroupedBarChartSimple() {
       //
       var groupBarsRect = groupedBarsData
         .join("rect")
-        .attr("x", (d) => (orient == "vertical")
+        .attr("x", (d) => (isVertical(orient))
               ? 0
               : subGroupBand(d.key) + subGroupBand.bandwidth() / 2)
-        .attr("y", (d) => (orient == "vertical")
+        .attr("y", (d) => (isVertical(orient))
               ? subGroupBand(d.key) + subGroupBand.bandwidth() / 2
               : boundedHeight)
         .attr("fill", (d) => chartColour(d.name))
         .transition()
         .duration(700)
         .ease(d3.easeLinear)
-        .attr("height", (d) => (orient == "vertical")
+        .attr("height", (d) => (isVertical(orient))
               ? subGroupBand.bandwidth()
               : boundedHeight - val_linear(d.value))
-        .attr("y", (d) => (orient == "vertical")
+        .attr("y", (d) => (isVertical(orient))
               ? subGroupBand(d.key)
               : val_linear(d.value))
-        .attr("width", (d) => (orient == "vertical")
+        .attr("width", (d) => (isVertical(orient))
               ? val_linear(d.value)
               : subGroupBand.bandwidth())
-        .attr("x", (d) => (orient == "vertical")
+        .attr("x", (d) => (isVertical(orient))
               ? 0
               : subGroupBand(d.key));
       //
@@ -862,25 +886,25 @@ function GroupedBarChartSimple() {
           .attr("font-size", (d) => subGroupBand.bandwidth() / 4);
       }
       //
-      const band_offset = (orient == "vertical")
+      const band_offset = (isVertical(orient))
             ? 0
             : boundedHeight;
       svg
         .select("g")
         .append("g")
         .attr("transform", `translate(0,${band_offset})`)
-        .call((orient == "vertical")
+        .call((isVertical(orient))
               ? d3.axisLeft(groupBand)
               : d3.axisBottom(groupBand).tickSizeOuter(0));
       //
-      const linear_offset = (orient == "vertical")
+      const linear_offset = (isVertical(orient))
         ? boundedHeight
         : 0;
       svg
         .select("g")
         .append("g")
         .attr("transform", `translate(0,${linear_offset})`)
-        .call((orient == "vertical")
+        .call((isVertical(orient))
               ? d3.axisBottom(val_linear)
               : d3.axisLeft(val_linear));
       //
@@ -1391,14 +1415,15 @@ function DonutChartSimple() {
 //
 //
 function LineLinearSpark() {
+  //
   var data = [],
     svg_id,
     linear_domain,
     val_domain,
     linear_accessor,
     val_accessor,
-    width = undefined,
-    height = undefined,
+    width = 800,
+    height = 600,
     marginLeft = 0,
     marginRight = 0,
     marginBottom = 0,
@@ -1411,9 +1436,14 @@ function LineLinearSpark() {
       marginTop: marginTop,
       marginBottom: marginBottom,
     },
-    chartColour,
+    curve = d3.curveBasis,
+    chartColour = "black",
     on_hover,
-    with_hover = false;
+    with_hover = false,
+    withRightScale = false,
+    pathShapeRendering = "geometricPrecision",
+    pathStrokeWidth = 1,
+    submit = false;
   //
   var updateData;
   //
@@ -1425,81 +1455,111 @@ function LineLinearSpark() {
        
       }
       //
-      var boundedWidth = dims.weight - dims.marginRight - dims.marginLeft,
-        boundedHeight = dims.height - dims.marginTop - dims.marginBottom;
+      var boundedWidth = dims.width - dims.marginRight - dims.marginLeft,
+          boundedHeight = dims.height - dims.marginTop - dims.marginBottom;
       //
       var svg = getBaseSVG(this, svg_id, dims, responsivefy);
-      //
-      var linear = d3
-        .scaleTime()
-        .domain(linear_domain)
-        .range([0, boundedWidth]);
-      //
-      var val = d3.scaleLinear().domain(val_domain).range([boundedHeight, 0]);
-      //
-      var line = d3
-        .line()
-        .x((d, i) => linear(linear_accessor(d)))
-        .y((d) => val(val_accessor(d)));
-      //
       svg
+        .append("g")
+        .attr("width", svg.attr("width"))
+        .attr("transform", `translate(${dims.marginLeft},${dims.marginTop})`);
+      //
+      var linear = d3.scaleTime().
+          domain(linear_domain).
+          range([0, boundedWidth]);
+      //
+      var val = d3.scaleLinear().
+          domain(val_domain).
+          range([boundedHeight, 0]);
+      //
+      var line = d3.line().
+          x((d) => linear(linear_accessor(d))).
+          y((d) => val(val_accessor(d))).
+          curve(curve);
+      //
+      if(withRightScale) {
+        var rightTick = svg.select("g").
+            append("g").
+            attr("transform", `translate(${boundedWidth},0)`).
+            call(d3.axisRight(val).ticks(1));
+      }
+      //
+      let pathLength;
+      var path = svg
+        .select("g")
         .append("path")
         .datum(data)
         .attr("fill", "none")
         .attr("stroke", chartColour)
-        .attr("stroke-width", 1)
-        .attr("shape-rendering", "geometricPrecision")
-        .attr("d", line);
+        .attr("stroke-width", pathStrokeWidth)
+        .attr("shape-rendering", pathShapeRendering)
+        .attr("d", line)
+        .attr("stroke-dasharray", function () {
+          return (pathLength = this.getTotalLength());
+        })
+        .attr("stroke-dashoffset", pathLength)
+        .transition()
+        .duration(1000)
+        .on("start", function repeat() {
+          d3.active(this).attr("stroke-dashoffset", 0);
+        });
       //
+      // TODO fix legend, hover and visual markers
       var circle = svg
-        .datum(data)
-        .append("circle")
-        .attr("id", (d, i) => "legend" + svg_id)
-        .attr("class", "tooltip_circle" + svg_id)
-        .style("fill", "lightgrey")
-        .style("pointer-events", "none")
-        .style("opacity", 0)
-        .attr("stroke", "lightgrey")
-        .attr("r", 2);
+          .select("g")
+          .datum(data)
+          .append("circle")
+          .attr("id", (d, i) => "legend" + svg_id)
+          .attr("class", "tooltip_circle" + svg_id)
+          .style("fill", "lightgrey")
+          .style("pointer-events", "none")
+          .style("opacity", 0)
+          .attr("stroke", "lightgrey")
+          .attr("r", 2);
       //
       var bar = svg
-        .append("line")
-        .attr("style", "stroke:#999; stroke-width:0.5; stroke-dasharray: 5 3;")
-        .style("opacity", 0)
-        .attr("y2", boundedHeight)
-        .attr("x1", (d) => 0)
-        .attr("x2", (d) => 0);
+          .select("g")
+          .append("line")
+          .attr("style", "stroke:#999; stroke-width:0.5; stroke-dasharray: 5 3;")
+          .style("opacity", 0)
+          .attr("y2", boundedHeight)
+          .attr("x1", (d) => 0)
+          .attr("x2", (d) => 0);
       //
       var top_left_text = svg
-        .append("text")
-        .style("opacity", 0)
-        .attr("x", 0)
-        .attr("y", 0)
-        .text("0")
-        .style("font-size", "2rem")
-        .attr("alignment-baseline", "start");
+          .select("g")
+          .append("text")
+          .style("opacity", 0)
+          .attr("x", 0)
+          .attr("y", 0)
+          .text("0")
+          .style("font-size", "2rem")
+          .attr("alignment-baseline", "start");
       //
       var right_text_marker = svg
-        .append("text")
-        .attr("fill", "#999")
-        .attr("x", boundedWidth + 5)
-        .attr("y", val(val_accessor(data[0])))
-        .text(val_accessor(data[0]).toFixed(0));
+          .select("g")
+          .append("text")
+          .attr("fill", "#999")
+          .attr("x", boundedWidth + 5)
+          .attr("y", val(val_accessor(data[data.length - 1])))
+          .text(val_accessor(data[data.length - 1]).toFixed(0));
       //
       //
       var bisect = d3.bisector((d) => linear_accessor(d));
       //
+      var last = 0;
+      //
       function makeHoverLook(date) {
-        date = new Date(date.toJSDate().setUTCHours(0, 0, 0, 0));
+        //date = new Date(date.toJSDate().setUTCHours(0, 0, 0, 0));
         var ii = data.reduce(
           function (acc, c, i, arr) {
-            if (c[0].getTime() === date.getTime()) {
-              acc.y = c[1].length;
-              acc.date = c[0];
+            if (c.date.toLocaleString() === date.toLocaleString()) {
+              acc.y = last = c.value;
+              acc.date = c.date;
             }
             return acc;
           },
-          { date: date, y: 0 },
+          { date: date, y: last },
         );
         circle
           .attr("cx", linear(date))
@@ -1521,6 +1581,7 @@ function LineLinearSpark() {
           .text(ii.y.toFixed(0))
           .attr("fill", chartColour);
       }
+      //
       function clearHoverLook() {
         circle.style("opacity", 0);
         bar.style("opacity", 0);
@@ -1581,6 +1642,10 @@ function LineLinearSpark() {
         } finally {
           addEventListener(document.body, with_hover.type, selfEvent);
         }
+        //
+        if(submit) {
+          hoverable.submit(with_hover.type, (d)=>console.log("CALLBACK LINESPARK", d));
+        }
       }
       //
       if (typeof on_hover === "string") {
@@ -1605,6 +1670,8 @@ function LineLinearSpark() {
       }
       //
       updateData = function () {};
+      //
+      updateCurve = function () {};
     });
   }
   //
@@ -1612,6 +1679,13 @@ function LineLinearSpark() {
     if (!arguments.length) return data;
     data = val;
     if (typeof updateData === "function") updateData();
+    return chart;
+  };
+  //
+  chart.Curve = function (val) {
+    if(!arguments.length) return curve;
+    curve = val;
+    if (typeof updateCurve === 'function') updateCurve();
     return chart;
   };
   //
@@ -1626,6 +1700,20 @@ function LineLinearSpark() {
     on_hover = val;
     return chart;
   };
+  //
+  chart.WithRightScale = function (val) {
+    if(!arguments) return withRightScale;
+    withRightScale = val;
+    if(typeof updateRightScale === 'function') updateRightScale();
+    return chart;
+  }
+  //
+  chart.WithSubmit = function(val) {
+    if(!arguments.length) return submit;
+    submit = val;
+    if(typeof updateSubmit === 'function') updateSubmit();
+    return chart;
+  }
   //
   chart.WithHover = function (val) {
     if (!arguments.length) return with_hover;
@@ -3348,6 +3436,22 @@ function CircularHeatChartSimple() {
   return chart;
 }
 //
+//
+function ScaledNumberBox() {
+  //
+  var data = [],
+      svg_id = "",
+      height = 150,
+      width = 200;
+  //
+  function chart(selection) {
+    selection.each(function(){
+
+    });
+
+  }
+  return chart;
+}
 //
 export {
   BarChartSimple,
