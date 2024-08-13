@@ -70,7 +70,6 @@ const base_update = {};
 // eventable is the GlobalRouter and setup object
 var hovers = new Map();
 const selfCallBack = function(evt) {
-  console.log("EVENTABLE", evt, hovers);
   if(hovers.has(evt.type)){
     let cbs = hovers.get(evt.type);
     for(cb of cbs){
@@ -1511,10 +1510,10 @@ function LineLinearSpark() {
           .append("circle")
           .attr("id", (d, i) => "legend" + svg_id)
           .attr("class", "tooltip_circle" + svg_id)
-          .style("fill", "lightgrey")
+          .style("fill", "black")
           .style("pointer-events", "none")
           .style("opacity", 0)
-          .attr("stroke", "lightgrey")
+          .attr("stroke", "black")
           .attr("r", 2);
       //
       var bar = svg
@@ -1542,28 +1541,18 @@ function LineLinearSpark() {
           .attr("fill", "#999")
           .attr("x", boundedWidth + 5)
           .attr("y", val(val_accessor(data[data.length - 1])))
-          .text(val_accessor(data[data.length - 1]).toFixed(0));
+          .text(val_accessor(data[data.length - 1]));
       //
       //
-      var bisect = d3.bisector((d) => linear_accessor(d));
+      var bisect = d3.bisector((d) => linear_accessor(d)).left;
       //
       var last = 0;
       //
-      function makeHoverLook(date) {
-        //date = new Date(date.toJSDate().setUTCHours(0, 0, 0, 0));
-        var ii = data.reduce(
-          function (acc, c, i, arr) {
-            if (c.date.toLocaleString() === date.toLocaleString()) {
-              acc.y = last = c.value;
-              acc.date = c.date;
-            }
-            return acc;
-          },
-          { date: date, y: last },
-        );
+      function makeHoverLook(detail) {
+        //console.log(detail._data);
         circle
-          .attr("cx", linear(date))
-          .attr("cy", val(ii.y))
+          .attr("cx", linear(linear_accessor(detail._data)))
+          .attr("cy", val(val_accessor(detail._data)))
           .style("opacity", 1);
         //
         bar
@@ -1573,12 +1562,12 @@ function LineLinearSpark() {
           )
           .style("opacity", 1)
           .attr("y2", boundedHeight)
-          .attr("x1", (d) => linear(date))
-          .attr("x2", (d) => linear(date));
+          .attr("x1", (d) => linear(linear_accessor(detail._data)))
+          .attr("x2", (d) => linear(linear_accessor(detail._data)));
         //
         top_left_text
           .style("opacity", 1)
-          .text(ii.y.toFixed(0))
+          .text(val_accessor(detail._data))
           .attr("fill", chartColour);
       }
       //
@@ -1591,6 +1580,7 @@ function LineLinearSpark() {
       if (typeof with_hover === "object") {
         //
         svg
+          .select("g")
           .append("rect")
           .style("fill", "none")
           .style("z-index", 1001)
@@ -1608,10 +1598,15 @@ function LineLinearSpark() {
         function mousemove(e) {
           //
           var pos = d3.pointer(e),
-            x0 = DateTime.fromJSDate(linear.invert(pos[0]));
+              val = linear.invert(pos[0]),
+              index = bisect(data, val),
+              data_ = data[index - 1],
+              x0 = DateTime.fromJSDate(val);
+          //console.log(pos, date, index, data_, x0);
           //
           var hover = with_hover;
           hover.detail.date = x0;
+          hover.detail._data = data_;
           hover.detail.obj = e.srcElement.__data__;
           hover.detail.originalEvent = e;
           hover.detail.posX = pos[0];
@@ -1630,7 +1625,7 @@ function LineLinearSpark() {
         //
         function selfEvent(e) {
           if (e.detail.enter) {
-            makeHoverLook(e.detail.date);
+            makeHoverLook(e.detail);
           } else {
             clearHoverLook();
           }
@@ -1644,7 +1639,7 @@ function LineLinearSpark() {
         }
         //
         if(submit) {
-          hoverable.submit(with_hover.type, (d)=>console.log("CALLBACK LINESPARK", d));
+          hoverable.submit(with_hover.type, (d)=>d);
         }
       }
       //
