@@ -2,12 +2,14 @@ import * as d3 from "d3";
 import { DateTime } from "luxon";
 import { addEventListener } from "./events.js";
 //
-const isUndef = (a, fn) => fn(a) === undefined;
+const isUndef = (a, fn) => ((fn === 'function') ? fn(a) : a) === undefined;
 //
+// TODO Debug cradle
 const debugLog = (l) => console.debug(l);
 //
 const isVertical = (a) => (a == "vertical");
 //
+// TODO not great on resize. maybe aspect can be changed?
 function responsivefy(svg) {
   var container = d3.select(svg.node().parentNode),
     parent = container._groups[0][0].getBoundingClientRect(),
@@ -17,7 +19,7 @@ function responsivefy(svg) {
   //
   svg
     .attr("viewBox", "0 0 " + width + " " + height)
-    .attr("perserveAspectRatio", "xMinYMid meet")
+    .attr("perserveAspectRatio", "xMidYMin")
     .call(resize);
   //
   function resize(evt) {
@@ -84,9 +86,9 @@ const hoverable = {
       arr.append(callBack);
       hovers.set(eventString, arr);
       return;
-    } else {
-      hovers.set(eventString, [callBack]);
     }
+    //
+    hovers.set(eventString, [callBack]);
     addEventListener(document.body, eventString, selfCallBack);
   },
 };
@@ -94,7 +96,7 @@ const hoverable = {
 // TODO: ALL VARIABLES BETTER NAMES
 // TODO: RETURN THE TOP-LEVEL SVG
 //
-function BarChartSimple(name) {
+function BarChartSimple() {
   //
   var band,
     val,
@@ -1442,7 +1444,8 @@ function LineLinearSpark() {
     withRightScale = false,
     pathShapeRendering = "geometricPrecision",
     pathStrokeWidth = 1,
-    submit = false;
+    submit = false,
+    timeSeries = false;
   //
   var updateData;
   //
@@ -1461,9 +1464,11 @@ function LineLinearSpark() {
       svg
         .append("g")
         .attr("width", svg.attr("width"))
+        .attr("height", svg.attr("height"))
         .attr("transform", `translate(${dims.marginLeft},${dims.marginTop})`);
       //
-      var linear = d3.scaleTime().
+      var linear = (!timeSeries) ? d3.scaleLinear() : d3.scaleTime();
+      linear.
           domain(linear_domain).
           range([0, boundedWidth]);
       //
@@ -1476,8 +1481,9 @@ function LineLinearSpark() {
           y((d) => val(val_accessor(d))).
           curve(curve);
       //
+      var rightTick;
       if(withRightScale) {
-        var rightTick = svg.select("g").
+        rightTick = svg.select("g").
             append("g").
             attr("transform", `translate(${boundedWidth},0)`).
             call(d3.axisRight(val).ticks(1));
@@ -1515,6 +1521,22 @@ function LineLinearSpark() {
           .style("opacity", 0)
           .attr("stroke", "black")
           .attr("r", 2);
+
+      var circle_marker = svg
+          .select("g")
+          .selectAll("dot")
+          .data(data)
+          .join("circle")
+          .attr("id", (d, i) => i + "marker" + svg_id)
+          .attr("class", "tooltip_circle" + svg_id)
+          .style("fill", "black")
+          .style("pointer-events", "none")
+          .style("opacity", 1)
+          .attr("cx", (d) => linear(linear_accessor(d)))
+          .attr("cy", (d) => val(val_accessor(d)))
+          .style("opacity", 0.5)
+          .attr("stroke", "black")
+          .attr("r", 1);
       //
       var bar = svg
           .select("g")
@@ -1540,16 +1562,17 @@ function LineLinearSpark() {
           .append("text")
           .attr("fill", "#999")
           .attr("x", boundedWidth + 5)
-          .attr("y", val(val_accessor(data[data.length - 1])))
-          .text(val_accessor(data[data.length - 1]));
+          .attr("y", val(val_accessor(data[data.length - 1]))+5)
+          .text("-|"+val_accessor(data[data.length - 1]));
       //
       //
-      var bisect = d3.bisector((d) => linear_accessor(d)).left;
+      var bisect = d3.bisector((d) => linear_accessor(d));
       //
       var last = 0;
       //
       function makeHoverLook(detail) {
         //console.log(detail._data);
+        if(typeof detail._data === 'undefined') return;
         circle
           .attr("cx", linear(linear_accessor(detail._data)))
           .attr("cy", val(val_accessor(detail._data)))
@@ -1567,7 +1590,7 @@ function LineLinearSpark() {
         //
         top_left_text
           .style("opacity", 1)
-          .text(val_accessor(detail._data))
+          .text(val_accessor(detail._data)+"::"+linear_accessor(detail._data))
           .attr("fill", chartColour);
       }
       //
@@ -1599,20 +1622,18 @@ function LineLinearSpark() {
           //
           var pos = d3.pointer(e),
               val = linear.invert(pos[0]),
-              index = bisect(data, val),
-              data_ = data[index - 1],
-              x0 = DateTime.fromJSDate(val);
-          //console.log(pos, date, index, data_, x0);
+              index = bisect.left(data, val),
+              data_ = data[index - 1];
+          //
+          //console.log("MOUSE OVER "+svg_id,pos, val, index, data_);
           //
           var hover = with_hover;
-          hover.detail.date = x0;
           hover.detail._data = data_;
           hover.detail.obj = e.srcElement.__data__;
           hover.detail.originalEvent = e;
           hover.detail.posX = pos[0];
           hover.detail.posY = pos[1];
           hover.detail.enter = true;
-          //
           //
           document.body.dispatchEvent(hover);
         }
@@ -3444,6 +3465,22 @@ function ScaledNumberBox() {
 
     });
 
+  }
+  return chart;
+}
+//
+//
+function RealTimeMulti() {
+  var data = [],
+      svg_id = "",
+      width = 600,
+      height = 400;
+  //
+  //
+  function chart(selection) {
+    selection.each(function(){
+
+    });
   }
   return chart;
 }

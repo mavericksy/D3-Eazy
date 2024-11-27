@@ -65,12 +65,26 @@ One change to the chained functions (Orient("horizontal")) will produce this cha
 
 ## Charts
 
+Line:
+
+[Line Chart](docs/imgs/sparkBeta.png)
+
 Grouped Bar Chart:
 
 ![Simple Grouped Bar Chart Horizontal](docs/imgs/groupedBarChartSimpleOne.png)
 
-## CREDITS
+## Credits
 
 Mike Bostock for [D3 Reusable Charts](https://bost.ocks.org/mike/chart/).
 
 Rob Moore at Toptal for [Updatable Charts](https://www.toptal.com/d3-js/towards-reusable-d3-js-charts).
+
+## Prior Art
+
+[D3-ez](https://github.com/jamesleesaunders/d3-ez)
+
+@jamesleesaunders use of events and generalising the data format functions have been very useful examples.
+
+[D3-Timeseries](https://github.com/mcaule/d3-timeseries)
+
+@mcaule

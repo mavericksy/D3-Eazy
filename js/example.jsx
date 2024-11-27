@@ -10,6 +10,8 @@ import { ready } from "../events.js";
 
 ready(function () {
   //
+  const dashBoardID = "showcaseall";
+  //
   var dataset = [
     { name: "JS", value: 52, nice: 46 },
     { name: "GO", value: 301, nice: 202 },
@@ -183,12 +185,14 @@ ready(function () {
   d3.select("#" + elDonutTwo).call(TheDonutTwo);
   //
   //
-  var rampUp = d3.randomBeta(3.75, 1.36);
+  var rampUp = d3.randomBeta(2.55, 2.55);
   var ramp = [];
-  for(let i = 0; i<100;i++){
+  for(let i = 0; i<150;i++){
     ramp.push({i:i, r: +rampUp().toFixed(3)});
   }
-  console.log(ramp, d3.bin().thresholds(16).value((d)=>d.r)(ramp));
+  const betaDist = d3.bin().thresholds(16).value((d)=>d.r)(ramp);
+  //
+  console.log(ramp, betaDist);
   //
   const elSparkOne = "sparkLineChartSimpleOne";
   const lineOne = document.getElementById(elSparkOne).getBoundingClientRect();
@@ -201,14 +205,119 @@ ready(function () {
       SvgID("linesparkone").
       Width(widthSparkOne).
       Height(heightSparkOne).
+      MarginLeft(25).
+      MarginRight(80).
       DomainLinear([0,ramp.length-1]).
       LinearAccessor((d)=>d.i).
       DomainVal([0,d3.max(ramp,(d)=>d.r)]).
       ValAccessor((d)=>d.r).
-      WithHover(updateHoverEvent("lineSparkOneHover")).
+      WithHover(updateHoverEvent("lineSparkOneHoverlinesparkone")).
       WithSubmit(true).
       Curve(d3.curveCatmullRom.alpha(0.46)).
       Data(ramp);
   //
   d3.select("#" + elSparkOne).call(LineSparkOne);
+  //
+  const showBeta = [];
+  betaDist.reduce(function(p, c, i, arr){
+    let total = c.reduce(function(p,c){p.r = p.r + 1;return p},{r:0});
+    p.push({
+      i: +((c["x1"] + c["x0"]) / 2).toFixed(3),
+      r: total.r,
+    });
+    return p;
+  }, showBeta);
+  //
+  console.log(showBeta);
+  //
+  const elSparkTwo = "sparkLineChartSimpleTwo";
+  const lineTwo = document.getElementById(elSparkTwo).getBoundingClientRect();
+  const widthSparkTwo = lineTwo.width;
+  const heightSparkTwo = lineTwo.height;
+  //
+  var LineSparkTwo = LineLinearSpark().
+      SvgID("linesparktwo").
+      Width(widthSparkTwo).
+      Height(heightSparkTwo).
+      MarginLeft(25).
+      MarginRight(80).
+      DomainLinear([0,1]).
+      LinearAccessor((d)=>d.i).
+      DomainVal([0,d3.max(showBeta,(d)=>d.r)]).
+      ValAccessor((d)=>d.r).
+      WithHover(updateHoverEvent("lineSparkTwoHoverlinesparktwo")).
+      WithSubmit(true).
+      Curve(d3.curveCatmullRom.alpha(0.46)).
+      Data(showBeta);
+  //
+  d3.select("#" + elSparkTwo).call(LineSparkTwo);
+  //
+  //
+  var rampUpG = d3.randomGamma(2, 1);
+  var rampG = [];
+  for(let i = 0; i<150;i++){
+    rampG.push({i:i, r: +rampUpG().toFixed(3)});
+  }
+  const gammaDist = d3.bin().thresholds(16).value((d)=>d.r)(rampG);
+  //
+  console.log(rampG, gammaDist);
+  //
+  const elSparkThree = "sparkLineChartSimpleThree";
+  const lineThree = document.getElementById(elSparkThree).getBoundingClientRect();
+  const widthSparkThree = lineThree.width;
+  const heightSparkThree = lineThree.height;
+  //
+  var LineSparkThree = LineLinearSpark().
+      SvgID("linesparkthree").
+      Width(widthSparkThree).
+      Height(heightSparkThree).
+      MarginLeft(25).
+      MarginRight(80).
+      DomainLinear([0,ramp.length - 1]).
+      LinearAccessor((d)=>d.i).
+      DomainVal([0,d3.max(rampG,(d)=>d.r)]).
+      ValAccessor((d)=>d.r).
+      WithHover(updateHoverEvent("lineSparkThreeHoverlinesparkthree")).
+      WithSubmit(true).
+      Curve(d3.curveCatmullRom.alpha(0.46)).
+      Data(rampG);
+  //
+  d3.select("#" + elSparkThree).call(LineSparkThree);
+  //
+  //
+  const showGamma = [];
+  gammaDist.reduce(function(p, c, i, arr){
+    let total = c.reduce(function(p,c){p.r = p.r + 1;return p},{r:0});
+    p.push({
+      i: +((c["x1"] + c["x0"]) / 2).toFixed(3),
+      r: total.r,
+    });
+    return p;
+  }, showGamma);
+  //
+  console.log(showGamma);
+  //
+  const elSparkFour = "sparkLineChartSimpleFour";
+  const lineFour = document.getElementById(elSparkFour).getBoundingClientRect();
+  const widthSparkFour = lineFour.width;
+  const heightSparkFour = lineFour.height;
+  //
+  var LineSparkFour = LineLinearSpark().
+      SvgID("linesparkfour").
+      Width(widthSparkFour).
+      Height(heightSparkFour).
+      MarginLeft(25).
+      MarginRight(80).
+      MarginTop(20).
+      DomainLinear([0,d3.max(showGamma, (d)=>d.i)]).
+      LinearAccessor((d)=>d.i).
+      DomainVal([0,d3.max(showGamma,(d)=>d.r)]).
+      ValAccessor((d)=>d.r).
+      WithHover(updateHoverEvent("lineSparkFourHoverlinesparkfour")).
+      WithSubmit(true).
+      Curve(d3.curveCatmullRom.alpha(0.46)).
+      Data(showGamma);
+  //
+  d3.select("#" + elSparkFour).call(LineSparkFour);
+
 });
