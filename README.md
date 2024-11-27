@@ -67,7 +67,7 @@ One change to the chained functions (Orient("horizontal")) will produce this cha
 
 Line:
 
-[Line Chart](docs/imgs/sparkBeta.png)
+![Line Chart](docs/imgs/sparkBeta.png)
 
 Grouped Bar Chart:
 
