@@ -1,5 +1,7 @@
 # D3-Eazy
 
+![All](docs/imgs/all_one.png)
+
 _*THIS SOFTWARE IS ALPHA QUALITY*_
 
 _*EXPECT THE API TO CHANGE*_
