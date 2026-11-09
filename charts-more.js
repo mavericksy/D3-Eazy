@@ -8,7 +8,7 @@ import * as d3 from "d3";
 import { sankey, sankeyLinkHorizontal, sankeyJustify, sankeyLeft, sankeyRight, sankeyCenter } from "d3-sankey";
 import {
   makeChart, colours, palette, V, formatValue, keyed, tip, axisBottom, axisLeft, valueScale, xScaleFor, legend,
-  trendPoints, labelAt, labelText, place, bandValueScales, active, showTooltip, hideTooltip, makeFormatter,
+  trendPoints, labelAt, labelText, place, bandValueScales, active, refreshOverlays, showTooltip, hideTooltip, makeFormatter,
 } from "./chart-kit.js";
 import { resolveInterpolator } from "./features.js";
 
@@ -16,8 +16,9 @@ import { resolveInterpolator } from "./features.js";
 
 
 // A vertical line that follows the pointer, a dot on every series, and one tooltip that lists them.
-function crosshair(g, o, { x, y, groups, colour, w, h }) {
-  const { theme } = active();
+// It reads the scales from `ctx` on every event, so it keeps working after a zoom.
+function crosshair(g, o, { ctx, groups, colour, w, h }) {
+  const { theme } = ctx;
   const series = [...groups].map(([key, rows]) => ({ key, rows: rows.slice().sort((a, b) => o.X(a) - o.X(b)) }));
   const bisect = d3.bisector((d) => +o.X(d)).center;
   const line = g.append("line").attr("class", "crosshair").attr("stroke", theme.axis).attr("stroke-dasharray", "4 3")
@@ -25,17 +26,22 @@ function crosshair(g, o, { x, y, groups, colour, w, h }) {
   const dots = g.append("g").style("pointer-events", "none").selectAll("circle").data(series).join("circle")
     .attr("r", 4).attr("fill", (s) => colour(s.key)).attr("stroke", "#fff").style("opacity", 0);
   const heading = (value) => (value instanceof Date ? value.toLocaleString(typeof o.Locale === "string" ? o.Locale : "en-US", o.DateOptions) : formatValue(o, value));
-  g.append("rect").attr("class", "crosshair-area").attr("data-self-tooltip", "").attr("width", w).attr("height", h).attr("fill", "none").attr("pointer-events", "all")
+  // Zoom hides the crosshair, because its dots belong to the old scales until the pointer moves again.
+  ctx.hideCrosshair = () => { line.style("opacity", 0); dots.style("opacity", 0); hideTooltip(); };
+  const pick = (px) => {
+    const target = ctx.x.invert(px);
+    return series.map((s) => ({ s, d: s.rows[Math.max(0, Math.min(s.rows.length - 1, bisect(s.rows, +target)))] })).filter((p) => p.d);
+  };
+  return g.append("rect").attr("class", "crosshair-area").attr("data-self-tooltip", "").attr("width", w).attr("height", h)
+    .attr("fill", "none").attr("pointer-events", "all")
     .on("mousemove", (event) => {
-      const px = d3.pointer(event)[0];
-      const target = x.invert(px);
-      const picks = series.map((s) => ({ s, d: s.rows[Math.max(0, Math.min(s.rows.length - 1, bisect(s.rows, +target)))] })).filter((p) => p.d);
+      const picks = pick(d3.pointer(event)[0]);
       if (!picks.length) return;
       const anchor = picks[0].d;
-      line.attr("x1", x(o.X(anchor))).attr("x2", x(o.X(anchor))).style("opacity", 1);
+      line.attr("x1", ctx.x(o.X(anchor))).attr("x2", ctx.x(o.X(anchor))).style("opacity", 1);
       dots.style("opacity", (s) => (picks.some((p) => p.s === s) ? 1 : 0))
-        .attr("cx", (s) => { const p = picks.find((q) => q.s === s); return p ? x(o.X(p.d)) : 0; })
-        .attr("cy", (s) => { const p = picks.find((q) => q.s === s); return p ? y(o.Y(p.d)) : 0; });
+        .attr("cx", (s) => { const p = picks.find((q) => q.s === s); return p ? ctx.x(o.X(p.d)) : 0; })
+        .attr("cy", (s) => { const p = picks.find((q) => q.s === s); return p ? ctx.y(o.Y(p.d)) : 0; });
       if (o.Tooltip !== "none") {
         const rows = picks.map((p) => `${(o.LegendLabels && o.LegendLabels[p.s.key]) || p.s.key || "value"}: ${formatValue(o, o.Y(p.d))}`);
         showTooltip(o, theme, [heading(o.X(anchor)), ...rows].join("\n"), event.clientX, event.clientY);
@@ -45,72 +51,122 @@ function crosshair(g, o, { x, y, groups, colour, w, h }) {
       // The overlay covers the lines, so it passes a click on to OnClick with the point nearest the pointer.
       if (typeof o.OnClick !== "function") return;
       const [px, py] = d3.pointer(event);
-      const target = x.invert(px);
-      const points = series
-        .map((s) => s.rows[Math.max(0, Math.min(s.rows.length - 1, bisect(s.rows, +target)))])
-        .filter(Boolean);
+      const points = pick(px).map((p) => p.d);
       if (!points.length) return;
-      const best = d3.least(points, (d) => Math.abs(y(o.Y(d)) - py));
-      o.OnClick(event, best, event.currentTarget);
+      o.OnClick(event, d3.least(points, (d) => Math.abs(ctx.y(o.Y(d)) - py)), event.currentTarget);
     })
     .on("mouseleave", () => { line.style("opacity", 0); dots.style("opacity", 0); hideTooltip(); });
 }
 
+// Wheel to zoom, drag to pan, double-click to reset. Only the x axis zooms. The y axis refits to the
+// visible points (ZoomFitY). The chart is updated in place, so the animation does not replay.
+function zoomBehaviour(area, o, { ctx, base, data, X, defined, yFor, y0, paint, w, h }) {
+  const zoom = d3.zoom().scaleExtent([1, o.ZoomMax]).translateExtent([[0, 0], [w, h]]).extent([[0, 0], [w, h]])
+    .on("zoom", (event) => {
+      const next = event.transform.rescaleX(base);
+      let ny = y0;
+      if (o.ZoomFitY) {
+        const [lo, hi] = next.domain();
+        const visible = data.filter((d) => defined(d) && X(d) >= lo && X(d) <= hi);
+        if (visible.length > 1) ny = yFor(visible);
+      }
+      if (ctx.hideCrosshair) ctx.hideCrosshair();
+      ctx.x = next;
+      ctx.y = ny;
+      ctx.xAxis(next);
+      ctx.yAxis(ny);
+      paint(next, ny);
+      refreshOverlays(ctx);
+    })
+    .on("end", (event) => {
+      if (!event.sourceEvent) return;
+      const domain = ctx.x.domain();
+      ctx.setSilent("ZoomDomain", event.transform.k === 1 && event.transform.x === 0 ? null : domain);
+      if (typeof o.OnZoom === "function") o.OnZoom(domain);
+    });
+  area.style("cursor", "grab").call(zoom).on("dblclick.zoom", null)
+    .on("dblclick", () => {
+      ctx.set("ZoomDomain", null);
+      if (typeof o.OnZoom === "function") o.OnZoom(null);
+    });
+}
+
 export function xyRender(g, o, { width: w, height: h }) {
+  const ctx = active();
   const { Data: data, X, Y } = o;
   const defined = (d) => Y(d) != null && !Number.isNaN(+Y(d));
-  const x = xScaleFor(data.map(X), [0, w]);
-  if (o.DomainX && o.DomainX.length) x.domain(o.DomainX);
-  const ys = data.filter(defined).map(Y);
+  const base = xScaleFor(data.map(X), [0, w]);
+  const start = o.ZoomDomain || (o.DomainX && o.DomainX.length ? o.DomainX : null);
+  if (start) base.domain(start);
   const type = valueScale(o.YScale);
-  const lowest = o.YScale === "log" ? d3.min(ys.filter((v) => v > 0)) ?? 1 : Math.min(0, d3.min(ys) ?? 0);
-  const y = type().domain(o.DomainY ?? [lowest, d3.max(ys) ?? 1]).nice().range([h, 0]);
-  axisBottom(g, x, h);
-  axisLeft(g, y);
+  const yFor = (rows) => {
+    const ys = rows.filter(defined).map(Y);
+    const lowest = o.YScale === "log" ? d3.min(ys.filter((v) => v > 0)) ?? 1 : Math.min(0, d3.min(ys) ?? 0);
+    return type().domain(o.DomainY ?? [lowest, d3.max(ys) ?? 1]).nice().range([h, 0]);
+  };
+  const y0 = yFor(data);
+  axisBottom(g, base, h);
+  axisLeft(g, y0);
   const groups = o.Series ? d3.group(data, o.Series) : new Map([["", data]]);
   const colour = colours(o, [...groups.keys()]);
-  const line = d3.line().curve(o.Curve).defined(defined).x((d) => x(X(d))).y((d) => y(Y(d)));
-  const base = y(o.YScale === "log" ? y.domain()[0] : Math.max(y.domain()[0], 0));
-  const area = d3.area().curve(o.Curve).defined(defined).x((d) => x(X(d))).y0(base).y1((d) => y(Y(d)));
-  let index = 0;
-  for (const [key, rows] of groups) {
-    const sorted = rows.slice().sort((a, b) => X(a) - X(b));
-    const dash = Array.isArray(o.Dash) ? o.Dash[index] : o.Dash;
-    if (o.Area) {
-      let fill = colour(key);
-      if (o.Gradient) {
-        const id = `${o.SvgID || "chart"}-fade-${index}`;
-        const grad = active().root.append("defs").append("linearGradient").attr("id", id).attr("x1", 0).attr("x2", 0).attr("y1", 0).attr("y2", 1);
-        grad.append("stop").attr("offset", "0%").attr("stop-color", fill).attr("stop-opacity", 0.7);
-        grad.append("stop").attr("offset", "100%").attr("stop-color", fill).attr("stop-opacity", 0.02);
-        fill = `url(#${id})`;
+  const clipId = `${o.SvgID || "chart"}-clip`;
+  if (o.Zoom) ctx.root.append("defs").append("clipPath").attr("id", clipId).append("rect").attr("width", w).attr("height", h);
+  const plot = g.append("g").attr("class", "plot").attr("clip-path", o.Zoom ? `url(#${clipId})` : null);
+
+  // Draw every mark for the scales `x` and `y`. Zoom calls this again with new scales.
+  function paint(x, y) {
+    plot.selectAll("*").remove();
+    const line = d3.line().curve(o.Curve).defined(defined).x((d) => x(X(d))).y((d) => y(Y(d)));
+    const floor = y(o.YScale === "log" ? y.domain()[0] : Math.max(y.domain()[0], 0));
+    const area = d3.area().curve(o.Curve).defined(defined).x((d) => x(X(d))).y0(floor).y1((d) => y(Y(d)));
+    let index = 0;
+    for (const [key, rows] of groups) {
+      const sorted = rows.slice().sort((a, b) => X(a) - X(b));
+      const dash = Array.isArray(o.Dash) ? o.Dash[index] : o.Dash;
+      if (o.Area) {
+        let fill = colour(key);
+        if (o.Gradient) {
+          const id = `${o.SvgID || "chart"}-fade-${index}`;
+          ctx.root.select(`#${id}`).remove();
+          const grad = ctx.root.append("defs").append("linearGradient").attr("id", id).attr("x1", 0).attr("x2", 0).attr("y1", 0).attr("y2", 1);
+          grad.append("stop").attr("offset", "0%").attr("stop-color", fill).attr("stop-opacity", 0.7);
+          grad.append("stop").attr("offset", "100%").attr("stop-color", fill).attr("stop-opacity", 0.02);
+          fill = `url(#${id})`;
+        }
+        keyed(plot.append("path").attr("class", "area").attr("fill", fill).attr("opacity", o.Gradient ? 1 : o.Opacity).attr("d", area(sorted)), key);
       }
-      keyed(g.append("path").attr("class", "area").attr("fill", fill).attr("opacity", o.Gradient ? 1 : o.Opacity).attr("d", area(sorted)), key);
-    }
-    keyed(g.append("path").datum(sorted).attr("class", "mark line").attr("fill", "none").attr("stroke", colour(key))
-      .attr("stroke-width", o.StrokeWidth).attr("stroke-dasharray", dash || null).attr("stroke-linecap", "round")
-      .attr("d", line(sorted)), key);
-    if (o.Points) {
-      keyed(tip(
-        g.append("g").selectAll("circle").data(sorted.filter(defined)).join("circle").attr("class", "point")
-          .attr("cx", (d) => x(X(d))).attr("cy", (d) => y(Y(d))).attr("r", o.PointSize).attr("fill", colour(key)),
-        (d) => `${key ? key + ": " : ""}${V(Y(d))}`,
-      ), key);
-    }
-    if (o.Trendline) {
-      const t = trendPoints(sorted.filter(defined).map((d) => [+X(d), +Y(d)]));
-      if (t) {
-        const isDate = X(sorted[0]) instanceof Date;
-        const pos = (v) => x(isDate ? new Date(v) : v);
-        g.append("line").attr("class", "trendline").attr("stroke", colour(key)).attr("stroke-dasharray", "5 4").attr("stroke-opacity", 0.8)
-          .attr("x1", pos(t[0][0])).attr("y1", y(t[0][1])).attr("x2", pos(t[1][0])).attr("y2", y(t[1][1]));
+      keyed(plot.append("path").datum(sorted).attr("class", "mark line").attr("fill", "none").attr("stroke", colour(key))
+        .attr("stroke-width", o.StrokeWidth).attr("stroke-dasharray", dash || null).attr("stroke-linecap", "round")
+        .attr("d", line(sorted)), key);
+      if (o.Points) {
+        keyed(tip(
+          plot.append("g").selectAll("circle").data(sorted.filter(defined)).join("circle").attr("class", "point")
+            .attr("cx", (d) => x(X(d))).attr("cy", (d) => y(Y(d))).attr("r", o.PointSize).attr("fill", colour(key)),
+          (d) => `${key ? key + ": " : ""}${V(Y(d))}`,
+        ), key);
       }
+      if (o.Trendline) {
+        const t = trendPoints(sorted.filter(defined).map((d) => [+X(d), +Y(d)]));
+        if (t) {
+          const isDate = X(sorted[0]) instanceof Date;
+          const pos = (v) => x(isDate ? new Date(v) : v);
+          plot.append("line").attr("class", "trendline").attr("stroke", colour(key)).attr("stroke-dasharray", "5 4").attr("stroke-opacity", 0.8)
+            .attr("x1", pos(t[0][0])).attr("y1", y(t[0][1])).attr("x2", pos(t[1][0])).attr("y2", y(t[1][1]));
+        }
+      }
+      index += 1;
     }
-    index += 1;
   }
+  paint(base, y0);
   if (groups.size > 1) legend(g, [...groups.keys()], colour, (key) => (o.LegendLabels && o.LegendLabels[key]) || key);
-  if (o.Crosshair) crosshair(g, o, { x, y, groups, colour, w, h });
+  let area = null;
+  if (o.Crosshair) area = crosshair(g, o, { ctx, groups, colour, w, h });
+  if (o.Zoom) {
+    area = area || g.append("rect").attr("class", "zoom-area").attr("width", w).attr("height", h).attr("fill", "none").attr("pointer-events", "all");
+    zoomBehaviour(area, o, { ctx, base, data, X, defined, yFor, y0, paint, w, h });
+  }
 }
+
 export const xyDefaults = {
   X: (d) => d.x,
   Y: (d) => d.y,
@@ -127,6 +183,11 @@ export const xyDefaults = {
   Trendline: false,
   DomainX: null,
   Crosshair: false,
+  Zoom: false,
+  ZoomDomain: null,
+  ZoomMax: 40,
+  ZoomFitY: true,
+  OnZoom: null,
   LegendLabels: null,
   DateOptions: { year: "numeric", month: "short", day: "numeric" },
 };

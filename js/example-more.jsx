@@ -41,10 +41,10 @@ const tree = {
 const set = (chart, { width, height }) => chart.Width(width).Height(height);
 
 export const moreExamples = [
-  { title: "Line chart (several series)", blurb: "Series splits one data array into a line per team. X can be a number or a Date.",
+  { title: "Line chart (several series)", blurb: "Series splits one data array into a line per team. Scroll to zoom, drag to pan, double-click to reset. Hover for the crosshair.",
     make(el, s) {
       return set(LineChartSimple(), s).SvgID("line").Title("Value per team over time")
-        .X((d) => d.day).Y((d) => d.value).Series((d) => d.team).Points(false).Data(timeSeries);
+        .X((d) => d.day).Y((d) => d.value).Series((d) => d.team).Points(false).Zoom(true).Crosshair(true).Data(timeSeries);
     },
     actions: { "Show points": (c) => c.Points(true), "Smooth": (c) => c.Curve(d3.curveCatmullRom) } },
   { title: "Area chart", blurb: "Same setters as the line chart, with the area filled.",

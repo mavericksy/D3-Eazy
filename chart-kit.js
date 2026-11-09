@@ -172,10 +172,15 @@ export function makeChart(defaults, render, { empty = defaultEmpty } = {}) {
         g.append("text").attr("class", "empty-state").attr("x", size.width / 2).attr("y", size.height / 2)
           .attr("text-anchor", "middle").attr("fill", theme.muted).text(o.EmptyText);
       } else {
-        ACTIVE = { o, theme, root, g, size, x: null, y: null };
+        // `set` changes an option and redraws. `setSilent` changes it without redrawing (used by zoom).
+        ACTIVE = {
+          o, theme, root, g, size, x: null, y: null,
+          set: (key, value) => { state[key] = value; redraw_.schedule(); },
+          setSilent: (key, value) => { state[key] = value; },
+        };
         try {
           render.call(this, g, o, size);
-          drawOverlays(g, o, size, theme);
+          drawOverlays(ACTIVE);
           styleChart(root, o, theme);
         } finally {
           ACTIVE = null;
@@ -257,8 +262,8 @@ export function tip(selection, text) {
   return selection.attr("data-tip", text);
 }
 
-function gridLines(g, scale, orient, ticks) {
-  const { o, theme, size } = ACTIVE;
+function gridLines(g, scale, orient, ticks, ctx = ACTIVE) {
+  const { o, theme, size } = ctx;
   const gen = orient === "x" ? d3.axisBottom(scale).tickSize(-size.height) : d3.axisLeft(scale).tickSize(-size.width);
   gen.tickFormat("");
   if (!scale.bandwidth && ticks != null) gen.ticks(ticks);
@@ -282,13 +287,28 @@ export function axisBottom(g, scale, h, ticks = 6) {
     g.append("text").attr("class", "axis-label").attr("x", size.width / 2).attr("y", h + o.MarginBottom + 12)
       .attr("text-anchor", "middle").attr("font-size", 11).attr("fill", "currentColor").text(o.XLabel);
   }
-  if (!o.ShowXAxis) return null;
+  if (!o.ShowXAxis) {
+    const ctx = ACTIVE;
+    ctx.xAxis = (next) => { if (o.Grid === "x" || o.Grid === "both") { g.select("g.x-grid").remove(); gridLines(g, next, "x", count, ctx); } };
+    return null;
+  }
   const gen = d3.axisBottom(scale);
   if (!scale.bandwidth) gen.ticks(count);
   const format = axisFormatter(o, scale, o.XFormat);
   if (format) gen.tickFormat(format);
   const axis = g.append("g").attr("class", "axis x-axis").attr("transform", `translate(0,${h})`).call(gen);
   rotateTicks(axis, o.XTickRotate);
+  // Redraw the axis and grid for a new scale, for example after a zoom.
+  const ctx = ACTIVE;
+  ctx.xAxis = (next) => {
+    const nextGen = d3.axisBottom(next);
+    if (!next.bandwidth) nextGen.ticks(count);
+    const nextFormat = axisFormatter(o, next, o.XFormat);
+    if (nextFormat) nextGen.tickFormat(nextFormat);
+    axis.call(nextGen).selectAll(".domain, .tick line").attr("stroke", ctx.theme.axis);
+    rotateTicks(axis, o.XTickRotate);
+    if (o.Grid === "x" || o.Grid === "both") { g.select("g.x-grid").remove(); gridLines(g, next, "x", count, ctx); }
+  };
   return axis;
 }
 
@@ -302,12 +322,25 @@ export function axisLeft(g, scale, ticks = 5) {
     g.append("text").attr("class", "axis-label").attr("transform", `translate(${-o.MarginLeft - 6},${size.height / 2}) rotate(-90)`)
       .attr("text-anchor", "middle").attr("font-size", 11).attr("fill", "currentColor").text(o.YLabel);
   }
-  if (!o.ShowYAxis) return null;
+  const ctx = ACTIVE;
+  if (!o.ShowYAxis) {
+    ctx.yAxis = (next) => { if (o.Grid === "y" || o.Grid === "both") { g.select("g.y-grid").remove(); gridLines(g, next, "y", count, ctx); } };
+    return null;
+  }
   const gen = d3.axisLeft(scale);
   if (!scale.bandwidth) gen.ticks(count);
   const format = axisFormatter(o, scale, o.YFormat);
   if (format) gen.tickFormat(format);
-  return g.append("g").attr("class", "axis y-axis").call(gen);
+  const axis = g.append("g").attr("class", "axis y-axis").call(gen);
+  ctx.yAxis = (next) => {
+    const nextGen = d3.axisLeft(next);
+    if (!next.bandwidth) nextGen.ticks(count);
+    const nextFormat = axisFormatter(o, next, o.YFormat);
+    if (nextFormat) nextGen.tickFormat(nextFormat);
+    axis.call(nextGen).selectAll(".domain, .tick line").attr("stroke", ctx.theme.axis);
+    if (o.Grid === "y" || o.Grid === "both") { g.select("g.y-grid").remove(); gridLines(g, next, "y", count, ctx); }
+  };
+  return axis;
 }
 
 // A scale type by name, for the YScale option.
@@ -370,8 +403,14 @@ export function position(scale, value) {
   return p == null || Number.isNaN(p) ? null : p + (scale.bandwidth ? scale.bandwidth() / 2 : 0);
 }
 
-function drawOverlays(g, o, size, theme) {
-  const { x, y } = ACTIVE;
+/** Draw (or redraw) reference lines and annotations with the scales in `ctx`. */
+export function refreshOverlays(ctx) {
+  ctx.g.selectAll("g.refline, g.annotation").remove();
+  drawOverlays(ctx);
+}
+
+function drawOverlays(ctx) {
+  const { g, o, size, theme, x, y } = ctx;
   for (const ref of o.RefLines || []) {
     const scale = ref.axis === "x" ? x : y;
     const vertical = ref.axis === "x";

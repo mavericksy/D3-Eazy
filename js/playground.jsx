@@ -31,6 +31,8 @@ const controls = [
   { label: "Axis labels", kind: "check", set: (c, v) => c.XLabel(v ? "Day" : "").YLabel(v ? "Users" : "") },
   { label: "Target line", kind: "check", set: (c, v) => c.RefLines(v ? [{ axis: "y", value: 3000, label: "target", colour: "#d1495b" }] : []) },
   { label: "Annotation", kind: "check", set: (c, v) => c.Annotations(v ? [{ x: days[30], y: 3300, text: "launch", dx: -30, dy: -30 }] : []) },
+  { label: "Zoom", kind: "check", set: (c, v) => c.Zoom(v) },
+  { label: "Crosshair", kind: "check", set: (c, v) => c.Crosshair(v) },
   { label: "Hover highlight", kind: "check", set: (c, v) => c.HoverHighlight(v) },
   { label: "Animate", kind: "check", start: true, set: (c, v) => c.Animate(v) },
 ];
@@ -72,7 +74,8 @@ export function renderPlayground(root, onTheme) {
   .XLabel("Day").YLabel("Users")
   .RefLines([{ axis: "y", value: 3000, label: "target" }])
   .Annotations([{ x: new Date(2025, 1, 1), y: 3300, text: "launch" }])
-  .HoverHighlight(true).Tooltip("custom")
+  .Zoom(true).OnZoom((domain) => console.log(domain))
+  .Crosshair(true).HoverHighlight(true).Tooltip("custom")
   .Data(data);`);
   return chart;
 }

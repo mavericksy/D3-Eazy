@@ -22,6 +22,7 @@ const draw = (chart, id) => {
   return el;
 };
 const click = (node) => node.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+const fire = (node, type, init = {}) => node.dispatchEvent(new window.MouseEvent(type, { bubbles: true, ...init }));
 
 test("every chart renders its default state without throwing", () => {
   for (const name of everyChart) {
@@ -371,4 +372,97 @@ test("the extra feature setters exist on every chart and chain", () => {
     assert.equal(chart.Theme("dark"), chart);
     assert.equal(chart.Theme(), "dark");
   }
+});
+
+const wheel = (node, deltaY, clientX = 300, clientY = 100) =>
+  node.dispatchEvent(new window.WheelEvent("wheel", { deltaY, clientX, clientY, bubbles: true, cancelable: true }));
+const ticks = (el) => [...el.querySelectorAll("g.x-axis .tick text")].map((n) => n.textContent).join("|");
+const yTicks = (el) => [...el.querySelectorAll("g.y-axis .tick text")].map((n) => n.textContent).join("|");
+const slope = d3.range(100).map((i) => ({ x: new Date(2025, 0, 1 + i), y: i < 50 ? i : 50 + (i - 50) * 20 }));
+const zoomable = (id, extra = (c) => c) => extra(lib.LineChartSimple().SvgID(id).Width(600).Height(300).Zoom(true).Data(slope));
+
+test("Zoom: the wheel narrows the x axis, the y axis refits, and OnZoom reports the domain", async () => {
+  const domains = [];
+  const el = draw(zoomable("z1", (c) => c.OnZoom((d) => domains.push(d))), "zoom-wheel");
+  const area = el.querySelector("rect.zoom-area");
+  assert.ok(area);
+  const [beforeX, beforeY] = [ticks(el), yTicks(el)];
+  const before = el.querySelector("path.line").getAttribute("d");
+  wheel(area, -600);
+  assert.notEqual(ticks(el), beforeX, "x ticks changed");
+  assert.notEqual(yTicks(el), beforeY, "y axis refit to the visible points");
+  assert.notEqual(el.querySelector("path.line").getAttribute("d"), before, "the line was repainted");
+  await new Promise((resolve) => setTimeout(resolve, 250)); // d3 ends a wheel gesture after 150 ms
+  assert.equal(domains.length, 1);
+  const [lo, hi] = domains[0];
+  assert.ok(hi - lo < slope[99].x - slope[0].x, "the domain is narrower than the data");
+  assert.equal(el.querySelectorAll("svg").length, 1, "zoom updates in place, no redraw");
+});
+
+test("Zoom: Zoom(false) draws no zoom area and no clip path", () => {
+  const el = draw(zoomable("z2", (c) => c.Zoom(false)), "zoom-off");
+  assert.equal(el.querySelector("rect.zoom-area"), null);
+  assert.equal(el.querySelector("clipPath"), null);
+  assert.ok(draw(zoomable("z2b"), "zoom-on").querySelector("clipPath"));
+});
+
+test("Zoom: ZoomFitY(false) keeps the y axis, ZoomMax limits how far you can zoom in", () => {
+  const el = draw(zoomable("z3", (c) => c.ZoomFitY(false)), "zoom-nofit");
+  const before = yTicks(el);
+  wheel(el.querySelector("rect.zoom-area"), -600);
+  assert.equal(yTicks(el), before);
+  const capped = draw(zoomable("z3b", (c) => c.ZoomMax(1)), "zoom-capped");
+  const t = ticks(capped);
+  wheel(capped.querySelector("rect.zoom-area"), -2000);
+  assert.equal(ticks(capped), t, "a ZoomMax of 1 allows no zoom");
+});
+
+test("Zoom: reference lines follow the refitted y axis", () => {
+  const el = draw(zoomable("z4", (c) => c.RefLines([{ axis: "y", value: 30, label: "mark" }])), "zoom-refs");
+  const y = () => el.querySelector("g.refline line").getAttribute("y1");
+  const before = y();
+  wheel(el.querySelector("rect.zoom-area"), -800, 100, 100);
+  assert.notEqual(y(), before);
+  assert.equal(el.querySelectorAll("g.refline").length, 1, "the overlay is replaced, not stacked");
+});
+
+test("Zoom: the zoomed domain survives a redraw and double-click resets it", async () => {
+  const chart = zoomable("z5");
+  const el = draw(chart, "zoom-keep");
+  wheel(el.querySelector("rect.zoom-area"), -600);
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  const zoomed = ticks(el);
+  const stored = chart.ZoomDomain();
+  assert.ok(stored && stored.length === 2);
+  chart.Subtitle("redrawn");
+  await tick();
+  assert.equal(el.querySelector("text.subtitle").textContent, "redrawn");
+  assert.equal(ticks(el), zoomed, "the redraw starts from the zoomed domain");
+  fire(el.querySelector("rect.zoom-area"), "dblclick");
+  await tick();
+  assert.equal(chart.ZoomDomain(), null);
+  assert.notEqual(ticks(el), zoomed, "reset shows the full range again");
+});
+
+test("Zoom works together with the crosshair, and on the time line charts", async () => {
+  const el = draw(lib.LineTimeChartSimple().Width(600).Height(300).Zoom(true).Data(slope.map((d) => ({ date: d.x, value: d.y }))), "zoom-time");
+  assert.equal(el.querySelector("rect.zoom-area"), null, "the crosshair area takes the zoom");
+  const area = el.querySelector("rect.crosshair-area");
+  const before = ticks(el);
+  wheel(area, -600);
+  assert.notEqual(ticks(el), before);
+  fire(area, "mousemove", { clientX: 200, clientY: 100 });
+  assert.ok(document.querySelector(".d3eazy-tooltip").textContent.length > 0);
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  const multi = draw(lib.MultiLineTimeChartSimple().Width(600).Height(300).Zoom(true).LineKeys(["a"]).Data(slope.map((d) => ({ date: d.x, a: d.y }))), "zoom-multi");
+  assert.ok(multi.querySelector("rect.crosshair-area"));
+});
+
+test("Zoom hides the crosshair dots and guide until the pointer moves again", () => {
+  const el = draw(lib.LineChartSimple().Width(600).Height(300).Zoom(true).Crosshair(true).Data(slope), "zoom-hide");
+  const area = el.querySelector("rect.crosshair-area");
+  fire(area, "mousemove", { clientX: 200, clientY: 100 });
+  assert.equal(el.querySelector("line.crosshair").style.opacity, "1");
+  wheel(area, -600);
+  assert.equal(el.querySelector("line.crosshair").style.opacity, "0");
 });

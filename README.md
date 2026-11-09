@@ -307,11 +307,31 @@ const markup = toSvgString(document.getElementById("chart")); // a standalone SV
 
 PNG export needs a browser. Fonts that are not installed on the viewer's machine fall back to the default font.
 
+### Zoom and pan
+
+```javascript
+LineChartSimple().Zoom(true).Crosshair(true).OnZoom((domain) => console.log(domain));
+```
+
+`Zoom(true)` works on the line, area, step, time line and multi-line charts.
+Scroll to zoom in around the pointer, drag to pan, and double-click to reset.
+Only the x axis zooms. The y axis refits to the visible points unless you call `ZoomFitY(false)`.
+The chart updates in place, so the entry animation does not replay.
+Reference lines, annotations, the grid and the crosshair follow the new scales.
+
+| Setter | Default | What it does |
+| --- | --- | --- |
+| `Zoom(bool)` | `false` | Turn on wheel zoom, drag pan and double-click reset. |
+| `ZoomMax(n)` | `40` | The most you can zoom in. `1` allows no zoom. |
+| `ZoomFitY(bool)` | `true` | Refit the y axis to the visible points. |
+| `ZoomDomain([lo, hi])` | `null` | The visible x range. Set it to start zoomed. It holds the zoomed range after a gesture, and a redraw keeps it. `null` shows everything. |
+| `OnZoom((domain) => ...)` | unset | Runs after each gesture with the new `[lo, hi]`, or `null` after a reset. |
+
 ### Options for one chart
 
 | Chart | Setters |
 | --- | --- |
-| Line, area, step | `Curve`, `Points`, `PointSize`, `Dash` (string or one per series), `Trendline`, `DomainY`, `Opacity`; area only: `Gradient`. Gaps in the data (`null` values) break the line. |
+| Line, area, step, time line, multi-line | `Curve`, `Points`, `PointSize`, `Dash` (string or one per series), `Trendline`, `DomainX`, `DomainY`, `Opacity`, `Crosshair`, `LegendLabels`, `DateOptions`, and the zoom setters below. Area only: `Gradient`. Gaps in the data (`null` values) break the line. |
 | Scatter | `R` (number or accessor), `MaxRadius`, `Group`, `Opacity`, `Trendline`, `DomainX`, `DomainY` |
 | Pie | `InnerRadius`, `PadAngle`, `CornerRadius`, `StartAngle`, `EndAngle`, `Labels`, `ShowPercent`, `CentreText`, `ShowLegend` |
 | Funnel | `ShowPercent` |
