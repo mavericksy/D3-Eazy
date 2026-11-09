@@ -130,6 +130,8 @@ const commonDefaults = {
 const defaultEmpty = (o) => Array.isArray(o.Data) && o.Data.length === 0;
 
 function prepareData(state) {
+  // Data that has not loaded yet (null or undefined) counts as no rows.
+  if (state.Data == null) return { ...state, Data: [] };
   let data = state.Data;
   if (!Array.isArray(data)) return state;
   if (state.Filter) data = data.filter(state.Filter);
@@ -179,8 +181,7 @@ export function makeChart(defaults, render, { empty = defaultEmpty } = {}) {
       applyFrame(root, o, o.Width, o.Height);
       const g = root.append("g").attr("transform", `translate(${m.left},${m.top})`);
       if (empty(o)) {
-        g.append("text").attr("class", "empty-state").attr("x", size.width / 2).attr("y", size.height / 2)
-          .attr("text-anchor", "middle").attr("fill", theme.muted).text(o.EmptyText);
+        emptyMessage(g, o, size, theme);
       } else {
         // `set` changes an option and redraws. `setSilent` changes it without redrawing (used by zoom).
         ACTIVE = {
@@ -218,6 +219,12 @@ export function makeChart(defaults, render, { empty = defaultEmpty } = {}) {
     };
   }
   return chart;
+}
+
+/** Draw the EmptyText message in the middle of the plot. Render functions use it when their data cannot be drawn. */
+export function emptyMessage(g, o, size, theme = active().theme) {
+  return g.append("text").attr("class", "empty-state").attr("x", size.width / 2).attr("y", size.height / 2)
+    .attr("text-anchor", "middle").attr("fill", theme.muted).text(o.EmptyText);
 }
 
 function styleChart(root, o, theme) {

@@ -8,7 +8,7 @@ import * as d3 from "d3";
 import { sankey, sankeyLinkHorizontal, sankeyJustify, sankeyLeft, sankeyRight, sankeyCenter } from "d3-sankey";
 import {
   makeChart, colours, palette, V, formatValue, keyed, tip, axisBottom, axisLeft, valueScale, xScaleFor, legend,
-  trendPoints, labelAt, labelText, place, bandValueScales, active, refreshOverlays, grow, showTooltip, hideTooltip, makeFormatter,
+  trendPoints, labelAt, labelText, place, bandValueScales, active, refreshOverlays, grow, emptyMessage, showTooltip, hideTooltip, makeFormatter,
 } from "./chart-kit.js";
 import { resolveInterpolator } from "./features.js";
 
@@ -639,7 +639,8 @@ export const RadarChartSimple = () =>
 // --- hierarchy, flow and networks ------------------------------------------------------
 
 function hierarchyOf(o) {
-  return d3.hierarchy(o.Data, o.Children).sum((d) => o.Value(d) || 0).sort((a, b) => b.value - a.value);
+  // Negative and missing values count as zero, so a node can never have a negative size.
+  return d3.hierarchy(o.Data, o.Children).sum((d) => Math.max(0, +o.Value(d) || 0)).sort((a, b) => b.value - a.value);
 }
 const hierarchyDefaults = {
   Children: (d) => d.children,
@@ -656,6 +657,7 @@ function topColour(o, root) {
 const tiles = { squarify: d3.treemapSquarify, binary: d3.treemapBinary, slice: d3.treemapSlice, dice: d3.treemapDice, sliceDice: d3.treemapSliceDice };
 function treemapRender(g, o, { width: w, height: h }) {
   const root = hierarchyOf(o);
+  if (!(root.value > 0)) return emptyMessage(g, o, { width: w, height: h });
   d3.treemap().tile(tiles[o.Tile] || d3.treemapSquarify).size([w, h]).paddingInner(o.Padding).round(true)(root);
   const colour = topColour(o, root);
   const leaves = root.leaves();
@@ -671,6 +673,7 @@ export const TreemapChartSimple = () => makeChart({ ...hierarchyDefaults, Tile: 
 
 function sunburstRender(g, o, { width: w, height: h }) {
   const root = hierarchyOf(o);
+  if (!(root.value > 0)) return emptyMessage(g, o, { width: w, height: h });
   const radius = Math.min(w, h) / 2;
   d3.partition().size([2 * Math.PI, radius])(root);
   const colour = topColour(o, root);
@@ -687,7 +690,8 @@ export const SunburstChartSimple = () => makeChart({ ...hierarchyDefaults }, sun
 
 function packRender(g, o, { width: w, height: h }) {
   const root = hierarchyOf(o);
-  d3.pack().size([w, h]).padding(3)(root);
+  if (!(root.value > 0)) return emptyMessage(g, o, { width: w, height: h });
+  d3.pack().size([Math.max(1, w), Math.max(1, h)]).padding(3)(root);
   const colour = topColour(o, root);
   tip(
     g.selectAll("circle").data(root.descendants().filter((d) => d.depth > 0)).join("circle").attr("class", "mark")
@@ -719,7 +723,7 @@ export const TreeDiagramSimple = () =>
 function chordRender(g, o, { width: w, height: h }) {
   const matrix = o.Data;
   const names = o.Names.length ? o.Names : matrix.map((_, i) => `${i}`);
-  const outer = Math.min(w, h) / 2 - 24, inner = outer - 12;
+  const outer = Math.max(2, Math.min(w, h) / 2 - 24), inner = Math.max(1, outer - 12);
   const colour = colours(o, names);
   const chords = d3.chord().padAngle(0.05).sortSubgroups(d3.descending)(matrix);
   const centre = g.append("g").attr("transform", `translate(${w / 2},${h / 2})`);
@@ -775,7 +779,9 @@ export const ForceNetworkSimple = () =>
 
 const aligns = { justify: sankeyJustify, left: sankeyLeft, right: sankeyRight, center: sankeyCenter };
 function sankeyRender(g, o, { width: w, height: h }) {
-  const graph = { nodes: (o.Data.nodes || []).map((d) => ({ ...d })), links: (o.Data.links || []).map((d) => ({ ...d })) };
+  const positive = (o.Data.links || []).filter((d) => +d.value > 0).map((d) => ({ ...d }));
+  if (!positive.length) return emptyMessage(g, o, { width: w, height: h });
+  const graph = { nodes: (o.Data.nodes || []).map((d) => ({ ...d })), links: positive };
   const layout = sankey().nodeId((d) => d.name).nodeWidth(o.NodeWidth).nodePadding(o.NodePadding).nodeAlign(aligns[o.Align] || sankeyJustify).extent([[0, 0], [w, h]]);
   const { nodes, links } = layout(graph);
   const colour = colours(o, nodes.map((d) => d.name));

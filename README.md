@@ -279,7 +279,7 @@ chart
 | `Filter(fn)` | unset | Keep only rows where `fn(row)` is true. |
 | `SortBy(accessor)`, `SortOrder("asc" \| "desc")` | unset, `"desc"` | Sort rows before drawing. |
 | `Limit(n)` | unset | Keep the first `n` rows after filter and sort. |
-| `EmptyText(text)` | `"No data"` | Message drawn when there are no rows. |
+| `EmptyText(text)` | `"No data"` | Message drawn when there are no rows, or when `Data` is `null` or `undefined` (data that has not loaded yet). Also shown when every value is zero or negative on the treemap, sunburst and circle packing, and when a Sankey has no positive flow. |
 
 `Data()` still returns the rows you set. The chart works on a copy.
 
