@@ -466,3 +466,63 @@ test("Zoom hides the crosshair dots and guide until the pointer moves again", ()
   wheel(area, -600);
   assert.equal(el.querySelector("line.crosshair").style.opacity, "0");
 });
+
+const grows = {
+  HistogramSimple: (c) => c.Thresholds(5).Data(d3.range(50)),
+  WaterfallChartSimple: (c) => c.Data(rows),
+  StackedBarChartSimple: (c) => c.Keys(["a", "b"]).Data([{ name: "x", a: 3, b: 4 }, { name: "y", a: 5, b: 1 }]),
+};
+for (const [name, setup] of Object.entries(grows)) {
+  test(`${name} bars grow from the baseline to their final size`, async () => {
+    const make = (animate) => setup(lib[name]().Width(600).Height(300).Duration(40).Stagger(0).Animate(animate));
+    const sizes = (el) => [...el.querySelectorAll("rect.mark")].map((n) => +n.getAttribute("height"));
+    const off = draw(make(false), `grow-off-${name}`);
+    const final = sizes(off);
+    assert.ok(final.some((v) => v > 10), "final bars have height");
+    const on = draw(make(true), `grow-on-${name}`);
+    assert.ok(sizes(on).every((v) => v === 0), "bars start collapsed");
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    assert.deepEqual(sizes(on).map((v) => Math.round(v)), final.map((v) => Math.round(v)));
+  });
+}
+
+test("data labels fade in with the bars", () => {
+  const el = draw(lib.HistogramSimple().Width(600).Height(300).DataLabels(true).Data(d3.range(30)), "labels-fade");
+  assert.equal(el.querySelector("text.data-label").style.opacity, "0");
+  const still = draw(lib.HistogramSimple().Width(600).Height(300).Animate(false).DataLabels(true).Data(d3.range(30)), "labels-still");
+  assert.equal(still.querySelector("text.data-label").style.opacity, "");
+});
+
+const stacked = (id) => lib.StackedBarChartSimple().SvgID(id).Width(600).Height(300).Keys(["a", "b"]).Animate(false)
+  .Data([{ name: "x", a: 3, b: 4 }, { name: "y", a: 5, b: 1 }]);
+// Width of the plot: the x axis line runs from 0 to the plot width (d3 adds a 0.5px offset).
+const plotWidth = (el) => +el.querySelector("g.x-axis path.domain").getAttribute("d").match(/H([\d.]+)/)[1];
+const legendX = (el) => +/translate\(([\d.-]+),/.exec(el.querySelector(".legend").getAttribute("transform"))[1];
+
+test("a right-hand legend sits beside the plot and the plot gets narrower to make room", () => {
+  const outside = draw(stacked("lo1"), "legend-outside");
+  const inside = draw(stacked("lo2").LegendInside(true), "legend-inside");
+  const none = draw(stacked("lo3").Legend("none"), "legend-none-width");
+  assert.ok(plotWidth(outside) < plotWidth(none), "the plot gave up width for the legend");
+  assert.equal(plotWidth(inside), plotWidth(none), "an inside legend takes no width");
+  assert.ok(legendX(outside) >= plotWidth(outside), "outside legend starts past the plot edge");
+  assert.ok(legendX(inside) < plotWidth(inside), "inside legend is within the plot");
+});
+
+test("left and horizontal legends stay inside the plot, and charts without a legend reserve no room", () => {
+  const none = plotWidth(draw(stacked("lp0").Legend("none"), "legend-ref"));
+  const left = draw(stacked("lp1").Legend("top-left"), "legend-left");
+  assert.equal(plotWidth(left), none);
+  assert.equal(legendX(left), 0);
+  const row = draw(stacked("lp2").LegendOrient("horizontal"), "legend-row-inside");
+  assert.equal(plotWidth(row), none);
+  const single = draw(lib.LineChartSimple().Width(600).Height(300).Data(days.map((d) => ({ x: d.x, y: d.y }))), "legend-single");
+  assert.equal(single.querySelector(".legend"), null);
+  assert.equal(plotWidth(single), plotWidth(draw(lib.LineChartSimple().Width(600).Height(300).Legend("none").Data(days), "legend-single-none")));
+});
+
+test("legend labels from LegendLabels decide the room reserved", () => {
+  const short = draw(lib.LineChartSimple().Width(600).Height(300).Series((d) => d.s).Data(days), "legend-short");
+  const long = draw(lib.LineChartSimple().Width(600).Height(300).Series((d) => d.s).LegendLabels({ p: "A very long series name", q: "Another long series name" }).Data(days), "legend-long");
+  assert.ok(plotWidth(long) < plotWidth(short));
+});

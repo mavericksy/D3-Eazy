@@ -235,6 +235,7 @@ Add one with `registerPalette(name, colours)`. The heat charts take `Interpolato
 | Setter | Default | What it does |
 | --- | --- | --- |
 | `Legend(position)` | `"top-right"` | `"top-left"`, `"top-right"`, `"bottom-left"`, `"bottom-right"`, or `"none"`. |
+| `LegendInside(bool)` | `false` | A right-hand legend sits beside the plot and the chart reserves room for it. `true` puts it over the plot corner. Left legends and horizontal legends are always inside the plot. |
 | `LegendOrient("vertical" \| "horizontal")` | `"vertical"` | Layout of the legend items. |
 | `LegendTitle(text)` | empty | Heading over the legend. |
 | `LegendInteractive(bool)` | `true` | Hover an item to highlight its series. Click an item to hide or show it. |

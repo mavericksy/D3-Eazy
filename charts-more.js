@@ -8,7 +8,7 @@ import * as d3 from "d3";
 import { sankey, sankeyLinkHorizontal, sankeyJustify, sankeyLeft, sankeyRight, sankeyCenter } from "d3-sankey";
 import {
   makeChart, colours, palette, V, formatValue, keyed, tip, axisBottom, axisLeft, valueScale, xScaleFor, legend,
-  trendPoints, labelAt, labelText, place, bandValueScales, active, refreshOverlays, showTooltip, hideTooltip, makeFormatter,
+  trendPoints, labelAt, labelText, place, bandValueScales, active, refreshOverlays, grow, showTooltip, hideTooltip, makeFormatter,
 } from "./chart-kit.js";
 import { resolveInterpolator } from "./features.js";
 
@@ -192,6 +192,14 @@ export const xyDefaults = {
   DateOptions: { year: "numeric", month: "short", day: "numeric" },
 };
 
+// Keys a render function shows in its legend. makeChart reads `render.legendKeys` to reserve room.
+const groupKeys = (rows, accessor) => {
+  if (!accessor) return [];
+  const keys = [...new Set(rows.map(accessor))];
+  return keys.length > 1 ? keys : [];
+};
+xyRender.legendKeys = (o) => groupKeys(o.Data, o.Series);
+
 /** Lines over a number or date x axis. `Series` (accessor) splits the data into several lines. */
 export const LineChartSimple = () => makeChart({ ...xyDefaults, Area: false }, xyRender);
 /** Same as LineChartSimple with the area under each line filled. */
@@ -223,6 +231,8 @@ function stackedAreaRender(g, o, { width: w, height: h }) {
   if (o.ShowYAxis) axisLeft(g, y);
   legend(g, keys, colour);
 }
+stackedAreaRender.legendKeys = (o) => o.Keys;
+
 /** Stacked area. Data is rows like `{ day: Date, a: 1, b: 2 }`. `Keys` lists the fields to stack. */
 export const StackedAreaChartSimple = () =>
   makeChart(
@@ -260,6 +270,7 @@ function stackedBarRender(g, o, size) {
       .attr(vert ? "x" : "y", (d) => (vert ? val(d[0]) : val(d[1])))
       .attr(vert ? "width" : "height", (d) => Math.abs(val(d[1]) - val(d[0])));
     keyed(tip(rects, (d) => `${s.key}: ${V(+(d[1] - d[0]).toFixed(3))}`), s.key);
+    grow(rects, vert, val(0));
     if (o.DataLabels) {
       // centred in each segment
       s.forEach((d) => {
@@ -271,6 +282,8 @@ function stackedBarRender(g, o, size) {
   }
   legend(g, keys, colour);
 }
+stackedBarRender.legendKeys = (o) => o.Keys;
+
 /** Stacked bars. Data is rows like `{ name: "Q1", a: 1, b: 2 }`. `Keys` lists the fields to stack. `Normalize(true)` makes every bar 100%. */
 export const StackedBarChartSimple = () =>
   makeChart({ Band: (d) => d.name, Keys: [], Orient: "horizontal", Normalize: false, Padding: 0.15 }, stackedBarRender);
@@ -363,13 +376,12 @@ function waterfallRender(g, o, size) {
   if (o.ShowTotal) steps.push({ name: o.TotalLabel, start: 0, end: total, delta: total, isTotal: true });
   const extent = d3.extent(steps.flatMap((s) => [s.start, s.end, 0]));
   const { bandScale, val } = bandValueScales(g, { ...o, Orient: "horizontal" }, size, steps.map((s) => s.name), extent);
-  tip(
-    g.selectAll("rect").data(steps).join("rect").attr("class", "mark")
-      .attr("x", (s) => bandScale(s.name)).attr("width", bandScale.bandwidth())
-      .attr("y", (s) => val(Math.max(s.start, s.end))).attr("height", (s) => Math.abs(val(s.start) - val(s.end)))
-      .attr("fill", (s) => (s.isTotal ? o.Total : s.delta >= 0 ? o.Up : o.Down)),
-    (s) => `${s.name}: ${s.delta >= 0 ? "+" : ""}${V(s.delta)}`,
-  );
+  const bars = g.selectAll("rect").data(steps).join("rect").attr("class", "mark")
+    .attr("x", (s) => bandScale(s.name)).attr("width", bandScale.bandwidth())
+    .attr("y", (s) => val(Math.max(s.start, s.end))).attr("height", (s) => Math.abs(val(s.start) - val(s.end)))
+    .attr("fill", (s) => (s.isTotal ? o.Total : s.delta >= 0 ? o.Up : o.Down));
+  tip(bars, (s) => `${s.name}: ${s.delta >= 0 ? "+" : ""}${V(s.delta)}`);
+  grow(bars, false, val(0));
   if (o.DataLabels) {
     for (const s of steps) {
       const top = s.end >= s.start;
@@ -391,12 +403,11 @@ function histogramRender(g, o, { width: w, height: h }) {
   const y = d3.scaleLinear().domain([0, d3.max(bins, (b) => b.length) || 1]).nice().range([h, 0]);
   axisBottom(g, x, h);
   axisLeft(g, y);
-  tip(
-    g.selectAll("rect").data(bins).join("rect").attr("class", "mark").attr("fill", palette()[0])
-      .attr("x", (b) => x(b.x0) + 1).attr("width", (b) => Math.max(0, x(b.x1) - x(b.x0) - 1))
-      .attr("y", (b) => y(b.length)).attr("height", (b) => h - y(b.length)),
-    (b) => `${b.x0} to ${b.x1}: ${b.length}`,
-  );
+  const bars = g.selectAll("rect").data(bins).join("rect").attr("class", "mark").attr("fill", palette()[0])
+    .attr("x", (b) => x(b.x0) + 1).attr("width", (b) => Math.max(0, x(b.x1) - x(b.x0) - 1))
+    .attr("y", (b) => y(b.length)).attr("height", (b) => h - y(b.length));
+  tip(bars, (b) => `${b.x0} to ${b.x1}: ${b.length}`);
+  grow(bars, false, h);
   if (o.DataLabels) {
     for (const b of bins) {
       if (b.length) labelAt(g, labelText(o, b.length), (x(b.x0) + x(b.x1)) / 2, y(b.length) - 4, "middle", "currentColor");
@@ -435,6 +446,8 @@ function scatterRender(g, o, { width: w, height: h }) {
   }
   if (groups.length > 1) legend(g, groups, colour);
 }
+scatterRender.legendKeys = (o) => groupKeys(o.Data, o.Group);
+
 /** Scatter plot. Set `R` to a number for a fixed size, or an accessor to make it a bubble chart. `Group` colours the dots. */
 export const ScatterPlotSimple = () =>
   makeChart({ X: (d) => d.x, Y: (d) => d.y, R: 4, MaxRadius: 24, Group: null, Opacity: 0.7, DomainX: null, DomainY: null, XScale: "linear", YScale: "linear", Trendline: false }, scatterRender);
@@ -540,6 +553,8 @@ function pieRender(g, o, { width: w, height: h }) {
   }
   if (o.Legend !== "none" && o.ShowLegend) legend(g, keys, colour);
 }
+pieRender.legendKeys = (o) => (o.ShowLegend ? o.Data.map(o.Key) : []);
+
 /** Pie chart. `InnerRadius` is a fraction of the radius (0 = pie, 0.6 = donut). */
 export const PieChartSimple = () =>
   makeChart(
@@ -615,6 +630,8 @@ function radarRender(g, o, { width: w, height: h }) {
   );
   if (rows.length > 1) legend(g, rows.map(o.Series), colour);
 }
+radarRender.legendKeys = (o) => (o.Data.length > 1 ? o.Data.map(o.Series) : []);
+
 /** Radar chart. Each row of Data is one shape. `Axes` lists the fields, `Value(row, axis)` reads one. */
 export const RadarChartSimple = () =>
   makeChart({ Axes: [], Series: (d) => d.name, Value: (d, axis) => d[axis], Max: null, Levels: 4 }, radarRender);
@@ -848,6 +865,8 @@ function parallelRender(g, o, { width: w, height: h }) {
   }
   if (groups.length > 1) legend(g, groups, colour);
 }
+parallelRender.legendKeys = (o) => groupKeys(o.Data, o.Group);
+
 /** Parallel coordinates: one line per row across several numeric fields. `Dimensions` lists the fields. */
 export const ParallelCoordinatesSimple = () =>
   makeChart({ Dimensions: [], Value: (d, dim) => d[dim], Group: null, MarginTop: 30 }, parallelRender);

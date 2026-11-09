@@ -110,7 +110,7 @@ const commonDefaults = {
   XLabel: "", YLabel: "", XFormat: null, YFormat: null, XTicks: null, YTicks: null,
   XTickRotate: 0, ShowXAxis: true, ShowYAxis: true, Grid: "none", GridDash: "",
   // legend
-  Legend: "top-right", LegendOrient: "vertical", LegendTitle: "", LegendInteractive: true,
+  Legend: "top-right", LegendOrient: "vertical", LegendTitle: "", LegendInteractive: true, LegendInside: false,
   // tooltip and interaction
   Tooltip: "custom", TooltipFormat: null, TooltipHtml: false,
   OnClick: null, OnHover: null, HoverHighlight: false, Focusable: false,
@@ -141,19 +141,29 @@ function prepareData(state) {
   return data === state.Data ? state : { ...state, Data: data };
 }
 
+// A right-hand legend sits in the margin, beside the plot, unless LegendInside is on.
+// Left and horizontal legends stay inside the plot.
+const legendOutside = (o, keys) =>
+  keys.length > 0 && o.Legend !== "none" && !o.LegendInside && o.LegendOrient !== "horizontal" && String(o.Legend).endsWith("right");
+const legendLabel = (o, key) => String((o.LegendLabels && o.LegendLabels[key]) || key);
+const legendWidth = (o, keys) => Math.max(0, ...keys.map((key) => 18 + legendLabel(o, key).length * 6));
+
 // Space for the heading, axis labels and caption, added around the user's margins.
-function marginsOf(o) {
+function marginsOf(o, legendKeys = []) {
   const m = { top: o.MarginTop, right: o.MarginRight, bottom: o.MarginBottom, left: o.MarginLeft };
   if (o.ShowTitle && o.Title) m.top += 24;
   if (o.Subtitle) m.top += 16;
   if (o.Caption) m.bottom += 16;
   if (o.XLabel) m.bottom += 18;
   if (o.YLabel) m.left += 18;
+  if (legendOutside(o, legendKeys)) m.right += legendWidth(o, legendKeys) + 12;
   return m;
 }
 
 export function makeChart(defaults, render, { empty = defaultEmpty } = {}) {
   const state = { ...commonDefaults, ...defaults };
+  // A render function can list the keys its legend will show, so the chart can make room before drawing.
+  const legendKeysOf = (o) => (render.legendKeys && !empty(o) ? render.legendKeys(o) : []);
   const watched = new WeakSet();
   var redraw_ = makeRedraw(chart);
   function chart(selection) {
@@ -161,7 +171,7 @@ export function makeChart(defaults, render, { empty = defaultEmpty } = {}) {
     selection.each(function () {
       const o = prepareData(state);
       const theme = resolveTheme(o.Theme);
-      const m = marginsOf(o);
+      const m = marginsOf(o, legendKeysOf(o));
       const size = { width: Math.max(0, o.Width - m.left - m.right), height: Math.max(0, o.Height - m.top - m.bottom) };
       const root = getBaseSVG(this, o.SvgID, null, responsivefy, { title: o.Title, description: o.Description });
       // Scale the drawing to Width x Height, whatever size the container has.
@@ -366,7 +376,8 @@ export function legend(g, keys, colour, labelOf = (key) => key) {
   const blockWidth = horizontal ? d3.sum(widths) : d3.max(widths);
   const blockHeight = titleHeight + (horizontal ? 14 : keys.length * 16);
   const [vertical, side] = o.Legend.split("-");
-  const x = side === "left" ? 0 : Math.max(0, size.width - blockWidth);
+  const outside = legendOutside(o, keys);
+  const x = side === "left" ? 0 : outside ? size.width + 12 : Math.max(0, size.width - blockWidth);
   const y = vertical === "bottom" ? Math.max(0, size.height - blockHeight) : 0;
   const lg = g.append("g").attr("class", "legend").attr("transform", `translate(${x},${y})`);
   if (o.LegendTitle) lg.append("text").attr("font-size", 10).attr("font-weight", 600).attr("y", 9).text(o.LegendTitle);
@@ -465,8 +476,10 @@ export function trendPoints(points) {
 
 // Label past the end of a bar-like mark, or inside it when the bar is long.
 export function labelAt(g, text, x, y, anchor, fill) {
-  return g.append("text").attr("class", "data-label").attr("x", x).attr("y", y).attr("text-anchor", anchor)
+  const label = g.append("text").attr("class", "data-label").attr("x", x).attr("y", y).attr("text-anchor", anchor)
     .attr("font-size", 10).attr("fill", fill).text(text);
+  if (isAnimated()) label.style("opacity", 0).transition("label").duration(ACTIVE.o.Duration).delay(ACTIVE.o.Duration / 2).style("opacity", 1);
+  return label;
 }
 export const labelText = (o, value) => {
   const format = makeFormatter(o, o.LabelFormat || o.ValueFormat);

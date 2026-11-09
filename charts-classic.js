@@ -116,6 +116,8 @@ function groupedRender(g, o, { width: w, height: h }) {
   if (bySub) legend(g, subs, colour);
 }
 
+groupedRender.legendKeys = (o) => (o.ColourBy === "subgroup" ? o.Subgroup : []);
+
 /** Several bars side by side per category. `Band` lists the categories, `Subgroup` the fields to compare. */
 export const GroupedBarChartSimple = () =>
   makeChart({
@@ -172,6 +174,8 @@ function donutRender(g, o, { width: w, height: h }) {
   }
   if (o.ShowLegend) legend(g, rows.map(o.Key), colour);
 }
+
+donutRender.legendKeys = (o) => (o.ShowLegend ? o.Data.map(o.Key) : []);
 
 /** Donut with a label on each slice. `Key` names a slice, `Val` sizes it, `ValText` is the text shown. */
 export const DonutChartSimple = () =>
@@ -282,6 +286,17 @@ export const LineTimeChartSimple = () =>
     ColourOverrides: o.StrokeColour ? { ...o.ColourOverrides, "": o.StrokeColour } : o.ColourOverrides,
   }, size));
 
+const multiLineRender = (g, o, size) => {
+  const rows = o.Data.flatMap((row) => o.LineKeys.map((key) => ({ date: o.Time(row), key, value: row[key] })));
+  xyRender(g, {
+    ...o, Data: rows, X: (d) => d.date, Y: (d) => d.value, Series: (d) => d.key, DomainX: o.DomainTime,
+    DomainY: o.DomainVal.length ? o.DomainVal : null, DateOptions: o.WithDateOptions,
+    LegendLabels: o.WithLegend,
+    ColourDomain: o.ColourDomain.length ? o.ColourDomain : o.LineKeys,
+  }, size);
+};
+multiLineRender.legendKeys = (o) => (o.LineKeys.length > 1 ? o.LineKeys : []);
+
 /**
  * Several lines over time from rows like `{ date, a: 1, b: 2 }`. `LineKeys` picks the fields.
  * `WithLegend({ a: "Label A" })` gives the legend text. The tooltip lists every line at the pointer.
@@ -290,15 +305,7 @@ export const MultiLineTimeChartSimple = () =>
   makeChart({
     ...xyDefaults, Area: false, Grid: "both", Time: (d) => d.date, LineKeys: [], DomainTime: [], DomainVal: [],
     WithLegend: {}, WithDateOptions: xyDefaults.DateOptions, Colour: null, Crosshair: true,
-  }, (g, o, size) => {
-    const rows = o.Data.flatMap((row) => o.LineKeys.map((key) => ({ date: o.Time(row), key, value: row[key] })));
-    xyRender(g, {
-      ...o, Data: rows, X: (d) => d.date, Y: (d) => d.value, Series: (d) => d.key, DomainX: o.DomainTime,
-      DomainY: o.DomainVal.length ? o.DomainVal : null, DateOptions: o.WithDateOptions,
-      LegendLabels: o.WithLegend,
-      ColourDomain: o.ColourDomain.length ? o.ColourDomain : o.LineKeys,
-    }, size);
-  });
+  }, multiLineRender);
 
 // --- SingleHorzBarChart ----------------------------------------------------------------
 
