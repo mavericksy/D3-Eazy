@@ -175,3 +175,49 @@ test("ForceNetworkSimple keeps nodes inside the plot area", () => {
     assert.ok(+c.getAttribute("cy") >= 0 && +c.getAttribute("cy") <= 300);
   }
 });
+
+function labelledBars(orient) {
+  return lib.BarChartSimple().SvgID("lbl").Val((a) => a.value).Band((a) => a.name)
+    .DomainBand(names).DomainVal([0, 301]).ColourDomain(names).Width(600).Height(300)
+    .MarginLeft(40).MarginBottom(20).Orient(orient).WithText(true).Data(dataset);
+}
+
+test("bar labels are centred on each bar and inside only the long bars", () => {
+  const el = makeContainer("labels-h");
+  d3.select(el).call(labelledBars("horizontal"));
+  const texts = [...el.querySelectorAll("text.bar-text")];
+  assert.equal(texts.length, 3);
+  assert.ok(texts.every((t) => t.getAttribute("text-anchor") === "middle"));
+  // values 52, 301, 182 against a 301 domain: only 301 is longer than 50% of the plot
+  const fills = texts.map((t) => t.getAttribute("fill"));
+  assert.equal(fills[0], "#222", "short bar: dark text outside the bar");
+  assert.notEqual(fills[1], "#222", "long bar: contrast text inside the bar");
+});
+
+test("labels on a flipped bar chart sit at the bar end, outside short bars", () => {
+  const el = makeContainer("labels-v");
+  d3.select(el).call(labelledBars("vertical"));
+  const texts = [...el.querySelectorAll("text.bar-text")];
+  assert.deepEqual(texts.map((t) => t.getAttribute("text-anchor")), ["start", "end", "end"]);
+});
+
+test("Data() on a labelled bar chart replaces the labels instead of stacking them", async () => {
+  const el = makeContainer("labels-update");
+  const chart = labelledBars("horizontal");
+  d3.select(el).call(chart);
+  chart.Data(dataset.slice(0, 2));
+  await tick();
+  assert.equal(el.querySelectorAll("text.bar-text").length, 2);
+  assert.equal(el.querySelectorAll("g.bar-labels").length, 1);
+});
+
+test("grouped bar labels exist for every bar and use readable colours", () => {
+  const el = makeContainer("grouped-labels");
+  d3.select(el).call(
+    lib.GroupedBarChartSimple().SvgID("gl").Band(names).Subgroup(["value", "nice"]).DomainVal([0, 301])
+      .ColourDomain(names).Width(600).Height(300).WithText(true).Data(dataset),
+  );
+  const texts = [...el.querySelectorAll("text.bar-text")];
+  assert.equal(texts.length, 6);
+  assert.ok(texts.every((t) => ["#222", "#111", "#fff"].includes(t.getAttribute("fill"))));
+});

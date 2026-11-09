@@ -183,6 +183,11 @@ Orientation follows `BarChartSimple`: `"horizontal"` puts the categories on the 
 - `SingleHorzBarChart`: the result of `d3.stack().keys([...])([row])`.
 - `LineAndBarChartSimple`: rows like `{ key: 4, value: 7 }`. `BandDomain([0, max])` is the numeric x range.
 
+`WithText(true)` prints the value on each bar of `BarChartSimple` and `GroupedBarChartSimple`.
+The label sits inside a long bar and just past the end of a short bar.
+`BarLength(percent)` sets the cut-off (default 50). `TextFill([outside, inside])` and `TextAnchor([outside, inside])`
+override the automatic colours and alignment. `TextFormat(fn)` formats the number.
+
 Each drawn mark also has a `<title>`, so the browser shows a tooltip on hover.
 The charts from `LineChartSimple` onward draw every mark with the class `mark`.
 Use it to style or select marks, for example `svg.selectAll(".mark")`.

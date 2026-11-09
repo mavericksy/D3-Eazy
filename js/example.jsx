@@ -68,12 +68,13 @@ const examples = [
         .Title("Value and nice per language")
         .Band(names)
         .Subgroup(["value", "nice"])
+        .WithText(true)
         .DomainVal([0, 400])
         .ColourDomain(["value", "nice"])
         .Width(width)
         .Height(height)
         .MarginTop(30)
-        .MarginLeft(40)
+        .MarginLeft(80)
         .MarginBottom(24)
         .Data(languages);
     },

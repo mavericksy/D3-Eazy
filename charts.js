@@ -176,8 +176,10 @@ function BarChartSimple() {
       marginBottom: marginBottom,
     },
     withText = false,
-    textFill = ["black", "lightgrey"],
-    textAnchor = ["end", "end"],
+    // null = automatic: dark text outside the bar, contrasting text inside.
+    textFill = null,
+    // null = automatic. Else [outside, inside] anchors.
+    textAnchor = null,
     textDeltaY = 0,
     textDeltaX = 0,
     textFormat = (d) => d,
@@ -297,6 +299,56 @@ function BarChartSimple() {
       leftAxis.call(leftGen);
       //
       //
+      // Value labels. Inside the bar when the bar is long, else just past its end.
+      function drawLabels() {
+        svg.selectAll("g.bar-labels").remove();
+        if (!withText) return;
+        var vert = isVertical(orient),
+          fontSize = Math.max(10, Math.min(14, quant_band.bandwidth() / fontDividend)),
+          full = vert ? boundedWidth : boundedHeight,
+          group = svg
+            .select("g")
+            .append("g")
+            .attr("class", "bar-labels")
+            .attr("font-size", fontSize);
+        // true when the label sits inside its bar
+        var inside = (d) =>
+          Math.abs(val_linear(val(d)) - val_linear(0)) > full * (barLengthPercentage / 100);
+        // readable text colour on the bar colour, unless TextFill was set
+        var onBar = (d) =>
+          d3.hsl(chartColour(band(d))).l > 0.6 ? "#111" : "#fff";
+        group
+          .selectAll("text")
+          .data(data)
+          .join("text")
+          .attr("class", "bar-text")
+          .attr("x", (d) => {
+            var mid = quant_band(band(d)) + quant_band.bandwidth() / 2;
+            if (!vert) return mid + textDeltaX;
+            return val_linear(val(d)) + (inside(d) ? -6 : 6) + textDeltaX;
+          })
+          .attr("y", (d) => {
+            var mid = quant_band(band(d)) + quant_band.bandwidth() / 2;
+            if (vert) return mid + textDeltaY;
+            return val_linear(val(d)) + (inside(d) ? fontSize + 3 : -5) + textDeltaY;
+          })
+          .attr("dy", vert ? "0.35em" : null)
+          .attr("text-anchor", (d) => {
+            var i = inside(d) ? 1 : 0;
+            if (textAnchor) return textAnchor[i];
+            return vert ? (i ? "end" : "start") : "middle";
+          })
+          .attr("fill", (d) =>
+            textFill ? textFill[inside(d) ? 1 : 0] : inside(d) ? onBar(d) : "#222",
+          )
+          .attr("opacity", 0)
+          .text((d) => textFormat(val(d)))
+          .transition()
+          .duration(500)
+          .delay((d, i) => i * 50)
+          .attr("opacity", 1);
+      }
+      //
       function transitionDims(svg) {
         if (isVertical(orient)) {
           svg
@@ -348,66 +400,8 @@ function BarChartSimple() {
         .attr("rx", corner_radius_x)
         .call(transitionDims);
       //
-      if (withText) {
-        svg
-          .select("g")
-          .append("g")
-          .attr("fill", textFill[0])
-          .attr("text-anchor", textAnchor[0])
-          .selectAll()
-          .data(data)
-          .join("text")
-          .attr("class", "bar-text")
-          .attr("x", (d) =>
-            (isVertical(orient))
-              ? val_linear(0)
-              : quant_band(band(d)) + quant_band.bandwidth() / 2,
-          )
-          .attr("y", (d) =>
-            (isVertical(orient))
-              ? quant_band(band(d)) + quant_band.bandwidth() / 2
-              : boundedHeight,
-          )
-          .attr("dy", textDeltaY)
-          .attr("dx", textDeltaX)
-          .attr("font-size", (d) => quant_band.bandwidth() / fontDividend)
-          .attr("opacity", 0)
+      drawLabels();
 
-          .text((d) => textFormat(val(d)))
-          .call((text) =>
-            text
-              .filter(function (d) {
-                var dimm = Math.abs(val_linear(val(d)) - val_linear(0));
-                var is =
-                  dimm >
-                    ((isVertical(orient)) ? boundedWidth : boundedHeight) *
-                    (barLengthPercentage / 100);
-                return is;
-              })
-              .attr("dx", isVertical(orient) ? textDeltaX * -1 : textDeltaX)
-              .attr(
-                "dy",
-                (isVertical(orient)) ? textDeltaY : textDeltaY * 2 * -1,
-              )
-              .attr("fill", textFill[1])
-              .attr("text-anchor", textAnchor[1]),
-          )
-
-          .transition()
-          .duration(500)
-          .ease(d3.easeLinear)
-          .attr("x", (d) =>
-            (isVertical(orient))
-              ? val_linear(val(d))
-              : quant_band(band(d)) + quant_band.bandwidth() / 2,
-          )
-          .attr("y", (d) =>
-            (isVertical(orient))
-              ? quant_band(band(d)) + quant_band.bandwidth() / 2
-              : val_linear(val(d)),
-          )
-          .attr("opacity", 1);
-      }
       //
       //
       // Duplication
@@ -469,71 +463,8 @@ function BarChartSimple() {
           .attr("fill", (d) => chartColour(band(d)))
           .call(updateDims);
 
-        if (withText) {
-          svg.selectAll("text.bar-text").remove();
-          svg
-            .append("g")
-            .attr("fill", textFill[0])
-            .attr("text-anchor", textAnchor[0])
-            .selectAll()
-            .data(data)
-            .join("text")
-            .attr("class", "bar-text")
-            .attr("x", (d) =>
-              isVertical(orient)
-                ? val_linear(val(d))
-                : quant_band(band(d)) + quant_band.bandwidth() / 2,
-            )
-            .attr("y", (d) =>
-              isVertical(orient)
-                ? quant_band(band(d)) + quant_band.bandwidth() / 2
-                : boundedHeight,
-            )
-            .attr("dy", textDeltaY)
-            .attr("dx", textDeltaX)
-            .attr("font-size", (d) => quant_band.bandwidth() / fontDividend)
-            .attr("opacity", 0)
+        drawLabels();
 
-            .text((d) => textFormat(val(d)))
-            .call((text) =>
-              // Is the bar larger than a % of range extent?
-              text
-                .filter(function (d) {
-                  var dimm = Math.abs(val_linear(val(d)) - val_linear(0));
-                  var is =
-                    dimm >
-                    (isVertical(orient) ? boundedWidth : boundedHeight) *
-                      (barLengthPercentage / 100);
-                  return is;
-                })
-                .attr("dx", isVertical(orient) ? textDeltaX * -1 : textDeltaX)
-                .attr(
-                  "dy",
-                  isVertical(orient)
-                    ? textDeltaY
-                    : // offset to account for height of font
-                      // TODO: find font relative size anf use as offset
-                      textDeltaY * 2 * -1,
-                )
-                .attr("fill", textFill[1])
-                .attr("text-anchor", textAnchor[1]),
-            )
-
-            .transition()
-            .duration(500)
-            .ease(d3.easeLinear)
-            .attr("x", (d) =>
-              isVertical(orient)
-                ? val_linear(val(d))
-                : quant_band(band(d)) + quant_band.bandwidth() / 2,
-            )
-            .attr("y", (d) =>
-              isVertical(orient)
-                ? quant_band(band(d)) + quant_band.bandwidth() / 2
-                : val_linear(val(d)),
-            )
-            .attr("opacity", 1);
-        }
       };
     });
   }
@@ -939,24 +870,34 @@ function GroupedBarChartSimple() {
               : subGroupBand(d.key));
       //
       if (withText) {
-        var groupBarsText = groupedBarsData
+        // Value labels. Inside the bar when the bar is long, else just past its end.
+        var vert = isVertical(orient),
+          fontSize = Math.max(10, Math.min(14, subGroupBand.bandwidth() / 2.5)),
+          full = vert ? boundedWidth : boundedHeight,
+          inside = (d) => Math.abs(val_linear(d.value) - val_linear(0)) > full * 0.5,
+          mid = (d) => subGroupBand(d.key) + subGroupBand.bandwidth() / 2;
+        groupedBarsData
           .join("text")
-          .attr("x", (d) => subGroupBand(d.key))
-          .attr("y", (d) => boundedHeight)
-          .attr("dy", "2em")
-          .attr("dx", (d) => subGroupBand.bandwidth() / 2)
-          .attr("fill", "lightgrey")
-          .attr("font-size", 0)
-          .attr("text-anchor", "middle")
+          .attr("class", "bar-text")
+          .attr("font-size", fontSize)
+          .attr("x", (d) =>
+            vert ? val_linear(d.value) + (inside(d) ? -6 : 6) : mid(d),
+          )
+          .attr("y", (d) =>
+            vert ? mid(d) : val_linear(d.value) + (inside(d) ? fontSize + 3 : -5),
+          )
+          .attr("dy", vert ? "0.35em" : null)
+          .attr("text-anchor", (d) =>
+            vert ? (inside(d) ? "end" : "start") : "middle",
+          )
+          .attr("fill", (d) =>
+            inside(d) ? (d3.hsl(chartColour(d.name)).l > 0.6 ? "#111" : "#fff") : "#222",
+          )
           .attr("opacity", 0)
           .text((d) => d.value)
           .transition()
           .duration(700)
-          .ease(d3.easeLinear)
-          .attr("y", (d) => val_linear(d.value) + subGroupBand.bandwidth() / 2)
-          .attr("dy", "-2.5em")
-          .attr("opacity", 1)
-          .attr("font-size", (d) => subGroupBand.bandwidth() / 4);
+          .attr("opacity", 1);
       }
       //
       const band_offset = (isVertical(orient))
