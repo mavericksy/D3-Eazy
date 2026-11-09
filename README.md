@@ -332,7 +332,7 @@ Reference lines, annotations, the grid and the crosshair follow the new scales.
 
 | Chart | Setters |
 | --- | --- |
-| Line, area, step, time line, multi-line | `Curve`, `Points`, `PointSize`, `Dash` (string or one per series), `Trendline`, `DomainX`, `DomainY`, `Opacity`, `Crosshair`, `LegendLabels`, `DateOptions`, and the zoom setters below. Area only: `Gradient`. Gaps in the data (`null` values) break the line. |
+| Line, area, step, time line, multi-line | `Curve`, `Points`, `PointSize`, `Dash` (string or one per series), `Trendline`, `DomainX`, `DomainY`, `Opacity`, `Crosshair`, `Decimate`, `LegendLabels`, `DateOptions`, and the zoom setters below. Area only: `Gradient`. Gaps in the data (`null` values) break the line. |
 | Scatter | `R` (number or accessor), `MaxRadius`, `Group`, `Opacity`, `Trendline`, `DomainX`, `DomainY` |
 | Pie | `InnerRadius`, `PadAngle`, `CornerRadius`, `StartAngle`, `EndAngle`, `Labels`, `ShowPercent`, `CentreText`, `ShowLegend` |
 | Funnel | `ShowPercent` |
@@ -340,6 +340,25 @@ Reference lines, annotations, the grid and the crosshair follow the new scales.
 | Treemap | `Tile` (`"squarify"`, `"binary"`, `"slice"`, `"dice"`, `"sliceDice"`), `Padding` |
 | Sankey | `Align` (`"justify"`, `"left"`, `"right"`, `"center"`), `NodeWidth`, `NodePadding` |
 | Force network | `Charge`, `LinkDistance`, `Iterations`, `NodeRadius`, `Group` |
+
+## Large data
+
+Measured once in headless Chromium on a laptop (Animate off, JavaScript time plus the next two frames).
+Treat the numbers as a rough guide, not a guarantee.
+
+| Chart and size | Draw time |
+| --- | --- |
+| Line, 50,000 points | about 35 ms |
+| Line, 200,000 points | about 90 ms |
+| Line, 1,000,000 points | about 400 ms |
+| Scatter, 50,000 points | about 160 ms (50,000 SVG circles) |
+| Bar, 5,000 bars | about 30 ms of JavaScript |
+
+`Decimate(true)` is on by default for lines and areas. When a line has more than four points per pixel,
+the chart draws the first, last, lowest and highest point of each pixel column. The picture looks the same and spikes stay.
+`OnClick` and `OnHover` still receive every row. With `Zoom(true)`, only the points in view are drawn,
+and the chart sorts the data once, not on every zoom step. Scatter and bar charts draw one SVG element per row,
+so tens of thousands of rows make the page heavy to hover and scroll. Bin the data first for those sizes.
 
 ## Linked charts
 

@@ -91,6 +91,34 @@ function zoomBehaviour(area, o, { ctx, base, data, X, defined, yFor, y0, paint, 
     });
 }
 
+// Keep the first, last, lowest and highest point of every pixel column. A line drawn from these
+// looks the same as one drawn from all the points, and spikes are not lost. Undefined rows are kept,
+// because they break the line.
+function decimateRows(rows, px, py, defined) {
+  const out = [];
+  let bucket = null;
+  const flush = () => {
+    if (!bucket) return;
+    const picks = [...new Set([bucket.first, bucket.min, bucket.max, bucket.last])].sort((a, b) => a.i - b.i);
+    for (const pick of picks) out.push(pick.d);
+    bucket = null;
+  };
+  rows.forEach((d, i) => {
+    if (!defined(d)) { flush(); out.push(d); return; }
+    const column = Math.floor(px(d)), value = py(d), rec = { d, i };
+    if (bucket && bucket.column === column) {
+      bucket.last = rec;
+      if (value < bucket.low) { bucket.min = rec; bucket.low = value; }
+      if (value > bucket.high) { bucket.max = rec; bucket.high = value; }
+    } else {
+      flush();
+      bucket = { column, first: rec, last: rec, min: rec, max: rec, low: value, high: value };
+    }
+  });
+  flush();
+  return out;
+}
+
 export function xyRender(g, o, { width: w, height: h }) {
   const ctx = active();
   const { Data: data, X, Y } = o;
@@ -113,6 +141,13 @@ export function xyRender(g, o, { width: w, height: h }) {
   if (o.Zoom) ctx.root.append("defs").append("clipPath").attr("id", clipId).append("rect").attr("width", w).attr("height", h);
   const plot = g.append("g").attr("class", "plot").attr("clip-path", o.Zoom ? `url(#${clipId})` : null);
 
+  // Sort each series once. Zoom repaints often, so it must not sort again.
+  const series = [...groups].map(([key, rows]) => {
+    const sorted = rows.slice().sort((a, b) => X(a) - X(b));
+    const xs = sorted.map((d) => +X(d));
+    return { key, sorted, xs, trend: o.Trendline ? trendPoints(sorted.filter(defined).map((d) => [+X(d), +Y(d)])) : null };
+  });
+
   // Draw every mark for the scales `x` and `y`. Zoom calls this again with new scales.
   function paint(x, y) {
     plot.selectAll("*").remove();
@@ -120,8 +155,11 @@ export function xyRender(g, o, { width: w, height: h }) {
     const floor = y(o.YScale === "log" ? y.domain()[0] : Math.max(y.domain()[0], 0));
     const area = d3.area().curve(o.Curve).defined(defined).x((d) => x(X(d))).y0(floor).y1((d) => y(Y(d)));
     let index = 0;
-    for (const [key, rows] of groups) {
-      const sorted = rows.slice().sort((a, b) => X(a) - X(b));
+    const [lo, hi] = x.domain().map(Number).sort((a, b) => a - b);
+    for (const { key, sorted: all, xs, trend } of series) {
+      // Only the points in view, plus one on each side so the line reaches the edges.
+      const sorted = all.slice(Math.max(0, d3.bisectLeft(xs, lo) - 1), Math.min(all.length, d3.bisectRight(xs, hi) + 1));
+      const drawn = o.Decimate && sorted.length > w * 4 ? decimateRows(sorted, (d) => x(X(d)), (d) => y(Y(d)), defined) : sorted;
       const dash = Array.isArray(o.Dash) ? o.Dash[index] : o.Dash;
       if (o.Area) {
         let fill = colour(key);
@@ -133,11 +171,11 @@ export function xyRender(g, o, { width: w, height: h }) {
           grad.append("stop").attr("offset", "100%").attr("stop-color", fill).attr("stop-opacity", 0.02);
           fill = `url(#${id})`;
         }
-        keyed(plot.append("path").attr("class", "area").attr("fill", fill).attr("opacity", o.Gradient ? 1 : o.Opacity).attr("d", area(sorted)), key);
+        keyed(plot.append("path").attr("class", "area").attr("fill", fill).attr("opacity", o.Gradient ? 1 : o.Opacity).attr("d", area(drawn)), key);
       }
       keyed(plot.append("path").datum(sorted).attr("class", "mark line").attr("fill", "none").attr("stroke", colour(key))
         .attr("stroke-width", o.StrokeWidth).attr("stroke-dasharray", dash || null).attr("stroke-linecap", "round")
-        .attr("d", line(sorted)), key);
+        .attr("d", line(drawn)), key);
       if (o.Points) {
         keyed(tip(
           plot.append("g").selectAll("circle").data(sorted.filter(defined)).join("circle").attr("class", "point")
@@ -146,9 +184,9 @@ export function xyRender(g, o, { width: w, height: h }) {
         ), key);
       }
       if (o.Trendline) {
-        const t = trendPoints(sorted.filter(defined).map((d) => [+X(d), +Y(d)]));
+        const t = trend;
         if (t) {
-          const isDate = X(sorted[0]) instanceof Date;
+          const isDate = X(all[0]) instanceof Date;
           const pos = (v) => x(isDate ? new Date(v) : v);
           plot.append("line").attr("class", "trendline").attr("stroke", colour(key)).attr("stroke-dasharray", "5 4").attr("stroke-opacity", 0.8)
             .attr("x1", pos(t[0][0])).attr("y1", y(t[0][1])).attr("x2", pos(t[1][0])).attr("y2", y(t[1][1]));
@@ -183,6 +221,7 @@ export const xyDefaults = {
   Trendline: false,
   DomainX: null,
   Crosshair: false,
+  Decimate: true,
   Zoom: false,
   ZoomDomain: null,
   ZoomMax: 40,

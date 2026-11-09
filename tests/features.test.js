@@ -526,3 +526,25 @@ test("legend labels from LegendLabels decide the room reserved", () => {
   const long = draw(lib.LineChartSimple().Width(600).Height(300).Series((d) => d.s).LegendLabels({ p: "A very long series name", q: "Another long series name" }).Data(days), "legend-long");
   assert.ok(plotWidth(long) < plotWidth(short));
 });
+
+const pointsInPath = (el) => (el.querySelector("path.line").getAttribute("d").match(/[ML]/g) || []).length;
+const dense = d3.range(6000).map((i) => ({ x: i, y: i === 3000 ? 1000 : Math.sin(i / 50) * 10 }));
+const denseChart = (decimate) => lib.LineChartSimple().Width(300).Height(200).Animate(false).Decimate(decimate).Data(dense);
+
+test("Decimate draws far fewer points for a dense line and keeps the spike", () => {
+  const full = draw(denseChart(false), "decimate-off");
+  const thin = draw(denseChart(true), "decimate-on");
+  assert.equal(pointsInPath(full), 6000);
+  assert.ok(pointsInPath(thin) < 1500, `got ${pointsInPath(thin)} points`);
+  // the highest point is at the top of the plot (y = 0 on the screen)
+  assert.match(thin.querySelector("path.line").getAttribute("d"), /,0(?=[LM]|$)/, "the spike reaches the top");
+  assert.equal(thin.querySelector("path.line").__data__.length, 6000, "the datum still holds every row");
+});
+
+test("Decimate leaves a short line alone and keeps the gaps for missing values", () => {
+  const short = draw(lib.LineChartSimple().Width(300).Height(200).Data(dense.slice(0, 100)), "decimate-short");
+  assert.equal(pointsInPath(short), 100);
+  const gappy = dense.map((d, i) => (i % 1000 === 0 && i > 0 ? { ...d, y: null } : d));
+  const el = draw(lib.LineChartSimple().Width(300).Height(200).Animate(false).Data(gappy), "decimate-gaps");
+  assert.ok((el.querySelector("path.line").getAttribute("d").match(/M/g) || []).length >= 6, "each missing value starts a new segment");
+});
