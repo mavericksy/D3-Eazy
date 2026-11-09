@@ -263,3 +263,12 @@ test("grow and fade run as separate transitions so one does not cancel the other
   assert.ok(+rect.getAttribute("height") > 20, `bar grew to its final height, got ${rect.getAttribute("height")}`);
   assert.equal(rect.style.opacity, "1");
 });
+
+test("tooltips and readouts show a Date as a short date, not the raw Date string", () => {
+  const data = d3.range(10).map((i) => ({ x: new Date(2025, 0, 1 + i), y: i }));
+  const el = draw(lib.LineLinearSpark().Width(400).Height(100).LinearAccessor((d) => d.x).ValAccessor((d) => d.y).Data(data), "date-format");
+  fire(el.querySelector("rect.spark-area"), "mousemove", { clientX: 100, clientY: 20 });
+  const readout = el.querySelector("text.spark-readout").textContent;
+  assert.match(readout, /^\d+ · [A-Z][a-z]{2} \d{1,2}, 2025$/);
+  assert.ok(!/GMT/.test(document.querySelector(".d3eazy-tooltip").textContent));
+});

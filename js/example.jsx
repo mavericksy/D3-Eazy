@@ -11,6 +11,8 @@ import {
   MultiLineTimeChartSimple,
   HeatMapBlockedSimple,
   CircularHeatChartSimple,
+  SingleHorzBarChart,
+  LineAndBarChartSimple,
   ready,
   downloadSvg,
   downloadPng,
@@ -18,6 +20,7 @@ import {
 } from "../d3-eazy.js";
 import { moreExamples } from "./example-more.jsx";
 import { renderPlayground } from "./playground.jsx";
+import { renderLinked } from "./linked.jsx";
 
 // Shared sample data.
 const languages = [
@@ -239,13 +242,45 @@ const examples = [
       "24 segments": (chart) => chart.NumSegments(24),
     },
   },
+  {
+    title: "Single stacked bar",
+    blurb: "Data comes from d3.stack(). Hover a part to dim the others. Click to lock it. WithText prints the names.",
+    short: true,
+    make(el, { width, height }) {
+      const keys = ["photos", "video", "docs", "other"];
+      return SingleHorzBarChart()
+        .SvgID("single")
+        .Title("Storage used by type")
+        .ColourDomain(keys)
+        .WithHover(true)
+        .WithText(true)
+        .Width(width)
+        .Height(height)
+        .Data(d3.stack().keys(keys)([{ photos: 120, video: 340, docs: 60, other: 80 }]));
+    },
+  },
+  {
+    title: "Bars with a line",
+    blurb: "Bars at numeric positions. The line is the average value per bin. ThresholdBin sets the bin width.",
+    make(el, { width, height }) {
+      const rows = d3.range(1, 25).map((i) => ({ key: i, value: Math.round(20 + 14 * Math.sin(i / 3) + (i % 5) * 4) }));
+      return LineAndBarChartSimple()
+        .SvgID("line-bar")
+        .Title("Orders per hour")
+        .ThresholdBin(0.25)
+        .Width(width)
+        .Height(height)
+        .Data(rows);
+    },
+    actions: { "Wider bins": (chart) => chart.ThresholdBin(0.5), "Narrow bins": (chart) => chart.ThresholdBin(0.2) },
+  },
 ];
 
 function renderExample(example, index) {
   const card = d3.select("#examples").append("section").attr("class", "card");
   card.append("h2").text(example.title);
   card.append("p").text(example.blurb);
-  const target = card.append("div").attr("class", "chart").attr("id", `chart-${index}`);
+  const target = card.append("div").attr("class", example.short ? "chart short" : "chart").attr("id", `chart-${index}`);
   const rect = target.node().getBoundingClientRect();
   const chart = example.make(target.node(), {
     width: rect.width,
@@ -276,6 +311,7 @@ function applyTheme(name, charts) {
 
 ready(() => {
   const playground = renderPlayground(document.getElementById("examples"), (name) => applyTheme(name, []));
+  renderLinked(document.getElementById("examples"));
   const charts = [...examples, ...moreExamples].map(renderExample);
   // Page-wide controls change every chart with one setter call each.
   const bar = d3.select("#global");

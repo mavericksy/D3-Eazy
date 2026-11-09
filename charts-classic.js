@@ -242,7 +242,7 @@ function sparkRender(g, o, { width: w, height: h }) {
         look.show(d);
         if (o.Tooltip !== "none") showTooltip(o, theme, `${formatValue(o, valueOf(d))}\n${formatValue(o, linearOf(d))}`, event.clientX, event.clientY);
         if (hover) {
-          Object.assign(hover.detail, { _data: d, originalEvent: event, posX: px, posY: d3.pointer(event)[1], enter: true });
+          Object.assign(hover.detail, { _data: d, date: linearOf(d), originalEvent: event, posX: px, posY: d3.pointer(event)[1], enter: true });
           document.body.dispatchEvent(hover);
         }
       })

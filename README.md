@@ -15,7 +15,7 @@ You can change a setter later and the chart redraws. You still have the full D3 
 npm install d3-eazy d3
 ```
 
-D3-Eazy is an ES module. It needs `d3` v7 and `luxon` v3 (`luxon` installs with the package).
+D3-Eazy is an ES module. It needs `d3` v7. `d3-sankey` installs with the package.
 There is no build step for the library. Use any bundler that handles ES modules, such as esbuild or Vite.
 
 ## Quick start
@@ -319,6 +319,22 @@ PNG export needs a browser. Fonts that are not installed on the viewer's machine
 | Treemap | `Tile` (`"squarify"`, `"binary"`, `"slice"`, `"dice"`, `"sliceDice"`), `Padding` |
 | Sankey | `Align` (`"justify"`, `"left"`, `"right"`, `"center"`), `NodeWidth`, `NodePadding` |
 | Force network | `Charge`, `LinkDistance`, `Iterations`, `NodeRadius`, `Group` |
+
+## Linked charts
+
+`LineLinearSpark`, `HeatMapBlockedSimple` and `SingleHorzBarChart` can follow each other's hover.
+They talk through events on `document.body`, so the charts need no reference to each other.
+
+```javascript
+const hover = new CustomEvent("day-hover", { detail: {} });
+
+HeatMapBlockedSimple().WithHover(hover).Data(days);                     // sends and listens
+LineLinearSpark().LinearAccessor((d) => d.date).WithHover(hover).Data(days); // sends and listens
+LineLinearSpark().OnHover("day-hover").Data(days);                      // only listens
+```
+
+The sparkline shows a guide line and dot at the same date. The heat map highlights every block of that date.
+`SingleHorzBarChart` sends `{ detail: { id } }` on the event named by `HoverEvent("name")`. The Linked charts card in the demo shows three charts together.
 
 ## Accessibility
 

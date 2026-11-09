@@ -33,6 +33,7 @@ header p {
   gap: 1rem;
 }
 .card {
+  align-self: start;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 8px;

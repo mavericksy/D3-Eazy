@@ -234,8 +234,11 @@ export function colours(o, domain) {
 export const palette = () => rangeOf(ACTIVE.o);
 
 // Value formatter for tooltips and labels. Plain numbers when ValueFormat is not set.
-/** Format a number with the chart's ValueFormat and Locale. Safe to call from event handlers. */
+/** Format a number with the chart's ValueFormat and Locale, and a Date as a short date. Safe to call from event handlers. */
 export function formatValue(o, value) {
+  if (value instanceof Date) {
+    return value.toLocaleDateString(typeof o.Locale === "string" ? o.Locale : "en-US", { year: "numeric", month: "short", day: "numeric" });
+  }
   const format = makeFormatter(o, o.ValueFormat);
   return format && typeof value === "number" ? format(value) : value;
 }
