@@ -5,46 +5,114 @@
 // Orientation: like BarChartSimple, "horizontal" puts the categories on the x axis and
 // "vertical" puts them on the y axis.
 import * as d3 from "d3";
-import { sankey, sankeyLinkHorizontal } from "d3-sankey";
+import { sankey, sankeyLinkHorizontal, sankeyJustify, sankeyLeft, sankeyRight, sankeyCenter } from "d3-sankey";
 import { getBaseSVG, responsivefy, makeRedraw } from "./charts.js";
+import {
+  resolveTheme, rangeOf, makeFormatter, axisFormatter, applyFrame, wireInteractions,
+  prefersReducedMotion, observeResize, resolveInterpolator,
+} from "./features.js";
 
 // --- factory ---------------------------------------------------------------------------
 
-function makeChart(defaults, render) {
-  const state = {
-    SvgID: "",
-    Title: "",
-    Description: "",
-    Data: [],
-    Width: 600,
-    Height: 400,
-    MarginTop: 20,
-    MarginRight: 20,
-    MarginBottom: 30,
-    MarginLeft: 40,
-    ColourDomain: [],
-    ColourRange: d3.schemeTableau10,
-    ...defaults,
-  };
+// The chart being drawn right now. Helpers read it, so render functions do not pass options around.
+let ACTIVE = null;
+
+// Options every chart has. A chart's own defaults are added on top.
+const commonDefaults = {
+  // identity and size
+  SvgID: "", Title: "", Description: "", Data: [], Width: 600, Height: 400,
+  MarginTop: 20, MarginRight: 20, MarginBottom: 30, MarginLeft: 40,
+  // colour
+  ColourDomain: [], ColourRange: null, Palette: null, ColourOverrides: {}, Theme: "light",
+  Background: null, FontFamily: null, FontSize: null,
+  // heading
+  ShowTitle: false, Subtitle: "", Caption: "", TitleAlign: "left",
+  // axes
+  XLabel: "", YLabel: "", XFormat: null, YFormat: null, XTicks: null, YTicks: null,
+  XTickRotate: 0, ShowXAxis: true, ShowYAxis: true, Grid: "none", GridDash: "",
+  // legend
+  Legend: "top-right", LegendOrient: "vertical", LegendTitle: "", LegendInteractive: true,
+  // tooltip and interaction
+  Tooltip: "custom", TooltipFormat: null, TooltipHtml: false,
+  OnClick: null, OnHover: null, HoverHighlight: false, Focusable: false,
+  // motion
+  Animate: true, Duration: 600, Stagger: 12, Ease: d3.easeCubicOut,
+  // overlays
+  RefLines: [], Annotations: [],
+  // data preparation
+  Filter: null, SortBy: null, SortOrder: "desc", Limit: null, EmptyText: "No data",
+  // number format
+  Locale: "en-US", ValueFormat: null, DataLabels: false, LabelFormat: null,
+  // mark style
+  MarkStroke: null, MarkStrokeWidth: null, MarkOpacity: null, MarkCornerRadius: null,
+  AutoResize: false,
+};
+
+const defaultEmpty = (o) => Array.isArray(o.Data) && o.Data.length === 0;
+
+function prepareData(state) {
+  let data = state.Data;
+  if (!Array.isArray(data)) return state;
+  if (state.Filter) data = data.filter(state.Filter);
+  if (state.SortBy) {
+    const compare = state.SortOrder === "asc" ? d3.ascending : d3.descending;
+    data = data.slice().sort((a, b) => compare(state.SortBy(a), state.SortBy(b)));
+  }
+  if (state.Limit != null) data = data.slice(0, state.Limit);
+  return data === state.Data ? state : { ...state, Data: data };
+}
+
+// Space for the heading, axis labels and caption, added around the user's margins.
+function marginsOf(o) {
+  const m = { top: o.MarginTop, right: o.MarginRight, bottom: o.MarginBottom, left: o.MarginLeft };
+  if (o.ShowTitle && o.Title) m.top += 24;
+  if (o.Subtitle) m.top += 16;
+  if (o.Caption) m.bottom += 16;
+  if (o.XLabel) m.bottom += 18;
+  if (o.YLabel) m.left += 18;
+  return m;
+}
+
+function makeChart(defaults, render, { empty = defaultEmpty } = {}) {
+  const state = { ...commonDefaults, ...defaults };
+  const watched = new WeakSet();
   var redraw_ = makeRedraw(chart);
   function chart(selection) {
     redraw_.mount(selection);
     selection.each(function () {
-      const o = state;
-      const size = {
-        width: Math.max(0, o.Width - o.MarginLeft - o.MarginRight),
-        height: Math.max(0, o.Height - o.MarginTop - o.MarginBottom),
-      };
-      const root = getBaseSVG(this, o.SvgID, null, responsivefy, {
-        title: o.Title,
-        description: o.Description,
-      });
+      const o = prepareData(state);
+      const theme = resolveTheme(o.Theme);
+      const m = marginsOf(o);
+      const size = { width: Math.max(0, o.Width - m.left - m.right), height: Math.max(0, o.Height - m.top - m.bottom) };
+      const root = getBaseSVG(this, o.SvgID, null, responsivefy, { title: o.Title, description: o.Description });
       // Scale the drawing to Width x Height, whatever size the container has.
       root.attr("viewBox", `0 0 ${o.Width} ${o.Height}`);
-      const g = root
-        .append("g")
-        .attr("transform", `translate(${o.MarginLeft},${o.MarginTop})`);
-      render.call(this, g, o, size);
+      applyFrame(root, o, o.Width, o.Height);
+      const g = root.append("g").attr("transform", `translate(${m.left},${m.top})`);
+      if (empty(o)) {
+        g.append("text").attr("class", "empty-state").attr("x", size.width / 2).attr("y", size.height / 2)
+          .attr("text-anchor", "middle").attr("fill", theme.muted).text(o.EmptyText);
+      } else {
+        ACTIVE = { o, theme, root, g, size, x: null, y: null };
+        try {
+          render.call(this, g, o, size);
+          drawOverlays(g, o, size, theme);
+          styleChart(root, o, theme);
+        } finally {
+          ACTIVE = null;
+        }
+        animate(g, o);
+      }
+      wireInteractions(root, o, theme);
+      if (o.AutoResize && !watched.has(this)) {
+        watched.add(this);
+        observeResize(this, ({ width, height }) => {
+          if (!state.AutoResize) return;
+          state.Width = Math.round(width);
+          state.Height = Math.round(height);
+          redraw_.schedule();
+        });
+      }
     });
   }
   for (const key of Object.keys(state)) {
@@ -58,17 +126,108 @@ function makeChart(defaults, render) {
   return chart;
 }
 
+function styleChart(root, o, theme) {
+  root.selectAll("g.axis .domain, g.axis .tick line").attr("stroke", theme.axis);
+  const marks = root.selectAll(".mark");
+  if (o.MarkStroke != null) marks.attr("stroke", o.MarkStroke);
+  if (o.MarkStrokeWidth != null) marks.attr("stroke-width", o.MarkStrokeWidth);
+  if (o.MarkCornerRadius != null) root.selectAll("rect.mark").attr("rx", o.MarkCornerRadius);
+}
+
+function animate(g, o) {
+  const base = o.MarkOpacity ?? 1;
+  const marks = g.selectAll(".mark");
+  if (!o.Animate || prefersReducedMotion()) {
+    if (o.MarkOpacity != null) marks.style("opacity", base);
+    return;
+  }
+  marks.style("opacity", 0).transition().duration(o.Duration)
+    .delay((d, i) => Math.min(i * o.Stagger, 600)).ease(o.Ease).style("opacity", base);
+}
+
 // --- helpers ---------------------------------------------------------------------------
 
-const colours = (o, domain) =>
-  d3.scaleOrdinal(o.ColourDomain.length ? o.ColourDomain : domain, o.ColourRange);
+// Ordinal colour scale. ColourOverrides ({ key: colour }) wins over the scale.
+function colours(o, domain) {
+  const scale = d3.scaleOrdinal(o.ColourDomain.length ? o.ColourDomain : domain, rangeOf(o));
+  return (key) => (o.ColourOverrides && o.ColourOverrides[key]) || scale(key);
+}
+const palette = () => rangeOf(ACTIVE.o);
 
-// Hover text. The browser shows an SVG <title> child as a tooltip.
-const tip = (selection, text) => selection.append("title").text(text);
+// Value formatter for tooltips and labels. Plain numbers when ValueFormat is not set.
+const V = (value) => {
+  const format = makeFormatter(ACTIVE.o, ACTIVE.o.ValueFormat);
+  return format && typeof value === "number" ? format(value) : value;
+};
 
-const axisBottom = (g, scale, h, ticks = 6) =>
-  g.append("g").attr("transform", `translate(0,${h})`).call(d3.axisBottom(scale).ticks(ticks));
-const axisLeft = (g, scale, ticks = 5) => g.append("g").call(d3.axisLeft(scale).ticks(ticks));
+// Tag marks that belong to a series, so the legend can highlight or hide them.
+const keyed = (selection, key) => selection.attr("data-key", typeof key === "function" ? (d, i, n) => String(key(d, i, n)) : String(key));
+
+// Hover text. "custom" tooltips read data-tip. "native" ones use the browser's <title>.
+function tip(selection, text) {
+  const mode = ACTIVE ? ACTIVE.o.Tooltip : "native";
+  if (mode === "none") return selection;
+  if (mode === "native") return selection.append("title").text(text);
+  return selection.attr("data-tip", text);
+}
+
+function gridLines(g, scale, orient, ticks) {
+  const { o, theme, size } = ACTIVE;
+  const gen = orient === "x" ? d3.axisBottom(scale).tickSize(-size.height) : d3.axisLeft(scale).tickSize(-size.width);
+  gen.tickFormat("");
+  if (!scale.bandwidth && ticks != null) gen.ticks(ticks);
+  const grid = g.insert("g", ":first-child").attr("class", `grid ${orient}-grid`).call(gen);
+  if (orient === "x") grid.attr("transform", `translate(0,${size.height})`);
+  grid.select(".domain").remove();
+  grid.selectAll("line").attr("stroke", theme.grid).attr("stroke-dasharray", o.GridDash || null);
+}
+
+function rotateTicks(axis, degrees) {
+  if (degrees) axis.selectAll("text").attr("transform", `rotate(${degrees})`).style("text-anchor", degrees < 0 ? "end" : "start");
+}
+
+// The bottom axis. "x" in every option name means this axis, even on a flipped bar chart.
+function axisBottom(g, scale, h, ticks = 6) {
+  const { o, size } = ACTIVE;
+  ACTIVE.x = scale;
+  const count = o.XTicks ?? ticks;
+  if (o.Grid === "x" || o.Grid === "both") gridLines(g, scale, "x", count);
+  if (o.XLabel) {
+    g.append("text").attr("class", "axis-label").attr("x", size.width / 2).attr("y", h + o.MarginBottom + 12)
+      .attr("text-anchor", "middle").attr("font-size", 11).attr("fill", "currentColor").text(o.XLabel);
+  }
+  if (!o.ShowXAxis) return null;
+  const gen = d3.axisBottom(scale);
+  if (!scale.bandwidth) gen.ticks(count);
+  const format = axisFormatter(o, scale, o.XFormat);
+  if (format) gen.tickFormat(format);
+  const axis = g.append("g").attr("class", "axis x-axis").attr("transform", `translate(0,${h})`).call(gen);
+  rotateTicks(axis, o.XTickRotate);
+  return axis;
+}
+
+// The left axis ("y" in every option name).
+function axisLeft(g, scale, ticks = 5) {
+  const { o, size } = ACTIVE;
+  ACTIVE.y = scale;
+  const count = o.YTicks ?? ticks;
+  if (o.Grid === "y" || o.Grid === "both") gridLines(g, scale, "y", count);
+  if (o.YLabel) {
+    g.append("text").attr("class", "axis-label").attr("transform", `translate(${-o.MarginLeft - 6},${size.height / 2}) rotate(-90)`)
+      .attr("text-anchor", "middle").attr("font-size", 11).attr("fill", "currentColor").text(o.YLabel);
+  }
+  if (!o.ShowYAxis) return null;
+  const gen = d3.axisLeft(scale);
+  if (!scale.bandwidth) gen.ticks(count);
+  const format = axisFormatter(o, scale, o.YFormat);
+  if (format) gen.tickFormat(format);
+  return g.append("g").attr("class", "axis y-axis").call(gen);
+}
+
+// A scale type by name, for the YScale option.
+function valueScale(type) {
+  return { linear: d3.scaleLinear, log: d3.scaleLog, sqrt: d3.scaleSqrt, symlog: d3.scaleSymlog }[type] || d3.scaleLinear;
+}
 
 // Time scale when the values are Dates, linear scale otherwise.
 function xScaleFor(values, range) {
@@ -77,13 +236,117 @@ function xScaleFor(values, range) {
   return scale.domain(d3.extent(values)).range(range);
 }
 
-function legend(g, keys, colour, width) {
+// Legend. Position, direction and title come from the Legend* options. Hover highlights a
+// series and click hides it, when LegendInteractive is on.
+function legend(g, keys, colour) {
+  const { o, size, root } = ACTIVE;
+  if (o.Legend === "none" || !keys.length) return;
+  const horizontal = o.LegendOrient === "horizontal";
+  const widths = keys.map((k) => 18 + String(k).length * 6);
+  const titleHeight = o.LegendTitle ? 16 : 0;
+  const blockWidth = horizontal ? d3.sum(widths) : d3.max(widths);
+  const blockHeight = titleHeight + (horizontal ? 14 : keys.length * 16);
+  const [vertical, side] = o.Legend.split("-");
+  const x = side === "left" ? 0 : Math.max(0, size.width - blockWidth);
+  const y = vertical === "bottom" ? Math.max(0, size.height - blockHeight) : 0;
+  const lg = g.append("g").attr("class", "legend").attr("transform", `translate(${x},${y})`);
+  if (o.LegendTitle) lg.append("text").attr("font-size", 10).attr("font-weight", 600).attr("y", 9).text(o.LegendTitle);
+  const hidden = new Set();
+  const marksOf = (key) => root.selectAll("[data-key]").filter(function () { return this.getAttribute("data-key") === String(key); });
+  let cursor = 0;
   keys.forEach((key, i) => {
-    const row = g.append("g").attr("transform", `translate(${width},${i * 14})`);
-    row.append("rect").attr("x", -10).attr("width", 10).attr("height", 10).attr("fill", colour(key));
-    row.append("text").attr("x", -14).attr("y", 9).attr("text-anchor", "end").attr("font-size", 10).text(key);
+    const row = lg.append("g").attr("class", "legend-item")
+      .attr("transform", horizontal ? `translate(${cursor},${titleHeight})` : `translate(0,${titleHeight + i * 16})`);
+    cursor += widths[i];
+    row.append("rect").attr("width", 10).attr("height", 10).attr("fill", colour(key));
+    row.append("text").attr("x", 14).attr("y", 9).attr("font-size", 10).attr("fill", "currentColor").text(key);
+    if (!o.LegendInteractive) return;
+    row.style("cursor", "pointer")
+      .on("mouseenter", () => {
+        root.selectAll("[data-key]").style("opacity", function () {
+          return this.getAttribute("data-key") === String(key) ? null : 0.2;
+        });
+      })
+      .on("mouseleave", () => root.selectAll("[data-key]").style("opacity", null))
+      .on("click", () => {
+        if (hidden.has(key)) hidden.delete(key); else hidden.add(key);
+        marksOf(key).style("display", hidden.has(key) ? "none" : null);
+        row.attr("opacity", hidden.has(key) ? 0.4 : 1);
+      });
   });
 }
+
+// Reference lines, bands and annotations, placed with the scales of the two axes.
+function position(scale, value) {
+  if (!scale) return null;
+  const v = scale.domain()[0] instanceof Date && typeof value === "string" ? new Date(value) : value;
+  const p = scale(v);
+  return p == null || Number.isNaN(p) ? null : p + (scale.bandwidth ? scale.bandwidth() / 2 : 0);
+}
+
+function drawOverlays(g, o, size, theme) {
+  const { x, y } = ACTIVE;
+  for (const ref of o.RefLines || []) {
+    const scale = ref.axis === "x" ? x : y;
+    const vertical = ref.axis === "x";
+    const layer = g.append("g").attr("class", "refline");
+    const colour = ref.colour || theme.muted;
+    if (ref.from != null && ref.to != null) {
+      const a = position(scale, ref.from), b = position(scale, ref.to);
+      if (a == null || b == null) continue;
+      layer.append("rect").attr("fill", colour).attr("opacity", ref.opacity ?? 0.12)
+        .attr(vertical ? "x" : "y", Math.min(a, b)).attr(vertical ? "width" : "height", Math.abs(b - a))
+        .attr(vertical ? "y" : "x", 0).attr(vertical ? "height" : "width", vertical ? size.height : size.width);
+    } else {
+      const v = position(scale, ref.value);
+      if (v == null) continue;
+      layer.append("line").attr("stroke", colour).attr("stroke-width", ref.width ?? 1).attr("stroke-dasharray", ref.dash ?? "4 3")
+        .attr(vertical ? "x1" : "y1", v).attr(vertical ? "x2" : "y2", v)
+        .attr(vertical ? "y1" : "x1", 0).attr(vertical ? "y2" : "x2", vertical ? size.height : size.width);
+    }
+    if (ref.label) {
+      const v = position(scale, ref.value ?? ref.from);
+      if (v != null) {
+        layer.append("text").attr("font-size", 10).attr("fill", colour)
+          .attr("x", vertical ? v + 3 : size.width - 3).attr("y", vertical ? 10 : v - 3)
+          .attr("text-anchor", vertical ? "start" : "end").text(ref.label);
+      }
+    }
+  }
+  for (const note of o.Annotations || []) {
+    const px = position(x, note.x), py = position(y, note.y);
+    if (px == null || py == null) continue;
+    const dx = note.dx ?? 0, dy = note.dy ?? -24;
+    const colour = note.colour || theme.text;
+    const layer = g.append("g").attr("class", "annotation");
+    layer.append("circle").attr("cx", px).attr("cy", py).attr("r", 3).attr("fill", "none").attr("stroke", colour);
+    layer.append("line").attr("x1", px).attr("y1", py).attr("x2", px + dx).attr("y2", py + dy).attr("stroke", colour).attr("stroke-opacity", 0.6);
+    layer.append("text").attr("x", px + dx).attr("y", py + dy + (dy < 0 ? -4 : 12)).attr("font-size", 10).attr("fill", colour)
+      .attr("text-anchor", dx < 0 ? "end" : dx > 0 ? "start" : "middle").text(note.text);
+  }
+}
+
+// Least-squares line through (x, y) pairs. Returns two end points, or null.
+function trendPoints(points) {
+  const n = points.length;
+  if (n < 2) return null;
+  const mx = d3.mean(points, (p) => p[0]), my = d3.mean(points, (p) => p[1]);
+  const denominator = d3.sum(points, (p) => (p[0] - mx) ** 2);
+  if (!denominator) return null;
+  const slope = d3.sum(points, (p) => (p[0] - mx) * (p[1] - my)) / denominator;
+  const [lo, hi] = d3.extent(points, (p) => p[0]);
+  return [[lo, my + slope * (lo - mx)], [hi, my + slope * (hi - mx)]];
+}
+
+// Label past the end of a bar-like mark, or inside it when the bar is long.
+function labelAt(g, text, x, y, anchor, fill) {
+  return g.append("text").attr("class", "data-label").attr("x", x).attr("y", y).attr("text-anchor", anchor)
+    .attr("font-size", 10).attr("fill", fill).text(text);
+}
+const labelText = (o, value) => {
+  const format = makeFormatter(o, o.LabelFormat || o.ValueFormat);
+  return format ? format(value) : value;
+};
 
 // Swap (band, value) coordinates by orientation.
 const place = (orient) => (orient === "vertical" ? (b, v) => [v, b] : (b, v) => [b, v]);
@@ -108,44 +371,56 @@ function bandValueScales(g, o, { width: w, height: h }, bands, valueDomain, band
 
 function xyRender(g, o, { width: w, height: h }) {
   const { Data: data, X, Y } = o;
+  const defined = (d) => Y(d) != null && !Number.isNaN(+Y(d));
   const x = xScaleFor(data.map(X), [0, w]);
-  const ys = data.map(Y);
-  const y = d3
-    .scaleLinear()
-    .domain(o.DomainY ?? [Math.min(0, d3.min(ys) ?? 0), d3.max(ys) ?? 1])
-    .nice()
-    .range([h, 0]);
+  const ys = data.filter(defined).map(Y);
+  const type = valueScale(o.YScale);
+  const lowest = o.YScale === "log" ? d3.min(ys.filter((v) => v > 0)) ?? 1 : Math.min(0, d3.min(ys) ?? 0);
+  const y = type().domain(o.DomainY ?? [lowest, d3.max(ys) ?? 1]).nice().range([h, 0]);
   axisBottom(g, x, h);
   axisLeft(g, y);
   const groups = o.Series ? d3.group(data, o.Series) : new Map([["", data]]);
   const colour = colours(o, [...groups.keys()]);
-  const line = d3.line().curve(o.Curve).x((d) => x(X(d))).y((d) => y(Y(d)));
-  const area = d3
-    .area()
-    .curve(o.Curve)
-    .x((d) => x(X(d)))
-    .y0(y(Math.max(y.domain()[0], 0)))
-    .y1((d) => y(Y(d)));
+  const line = d3.line().curve(o.Curve).defined(defined).x((d) => x(X(d))).y((d) => y(Y(d)));
+  const base = y(o.YScale === "log" ? y.domain()[0] : Math.max(y.domain()[0], 0));
+  const area = d3.area().curve(o.Curve).defined(defined).x((d) => x(X(d))).y0(base).y1((d) => y(Y(d)));
+  let index = 0;
   for (const [key, rows] of groups) {
     const sorted = rows.slice().sort((a, b) => X(a) - X(b));
+    const dash = Array.isArray(o.Dash) ? o.Dash[index] : o.Dash;
     if (o.Area) {
-      g.append("path").attr("class", "area").attr("fill", colour(key)).attr("opacity", o.Opacity).attr("d", area(sorted));
+      let fill = colour(key);
+      if (o.Gradient) {
+        const id = `${o.SvgID || "chart"}-fade-${index}`;
+        const grad = ACTIVE.root.append("defs").append("linearGradient").attr("id", id).attr("x1", 0).attr("x2", 0).attr("y1", 0).attr("y2", 1);
+        grad.append("stop").attr("offset", "0%").attr("stop-color", fill).attr("stop-opacity", 0.7);
+        grad.append("stop").attr("offset", "100%").attr("stop-color", fill).attr("stop-opacity", 0.02);
+        fill = `url(#${id})`;
+      }
+      keyed(g.append("path").attr("class", "area").attr("fill", fill).attr("opacity", o.Gradient ? 1 : o.Opacity).attr("d", area(sorted)), key);
     }
-    g.append("path")
-      .attr("class", "mark line")
-      .attr("fill", "none")
-      .attr("stroke", colour(key))
-      .attr("stroke-width", o.StrokeWidth)
-      .attr("d", line(sorted));
+    keyed(g.append("path").attr("class", "mark line").attr("fill", "none").attr("stroke", colour(key))
+      .attr("stroke-width", o.StrokeWidth).attr("stroke-dasharray", dash || null).attr("stroke-linecap", "round")
+      .attr("d", line(sorted)), key);
     if (o.Points) {
-      tip(
-        g.append("g").selectAll("circle").data(sorted).join("circle").attr("class", "point")
-          .attr("cx", (d) => x(X(d))).attr("cy", (d) => y(Y(d))).attr("r", 3).attr("fill", colour(key)),
-        (d) => `${key ? key + ": " : ""}${Y(d)}`,
-      );
+      keyed(tip(
+        g.append("g").selectAll("circle").data(sorted.filter(defined)).join("circle").attr("class", "point")
+          .attr("cx", (d) => x(X(d))).attr("cy", (d) => y(Y(d))).attr("r", o.PointSize).attr("fill", colour(key)),
+        (d) => `${key ? key + ": " : ""}${V(Y(d))}`,
+      ), key);
     }
+    if (o.Trendline) {
+      const t = trendPoints(sorted.filter(defined).map((d) => [+X(d), +Y(d)]));
+      if (t) {
+        const isDate = X(sorted[0]) instanceof Date;
+        const pos = (v) => x(isDate ? new Date(v) : v);
+        g.append("line").attr("class", "trendline").attr("stroke", colour(key)).attr("stroke-dasharray", "5 4").attr("stroke-opacity", 0.8)
+          .attr("x1", pos(t[0][0])).attr("y1", y(t[0][1])).attr("x2", pos(t[1][0])).attr("y2", y(t[1][1]));
+      }
+    }
+    index += 1;
   }
-  if (groups.size > 1) legend(g, [...groups.keys()], colour, w);
+  if (groups.size > 1) legend(g, [...groups.keys()], colour);
 }
 const xyDefaults = {
   X: (d) => d.x,
@@ -155,7 +430,12 @@ const xyDefaults = {
   DomainY: null,
   StrokeWidth: 1.5,
   Points: false,
+  PointSize: 3,
   Opacity: 0.3,
+  YScale: "linear",
+  Dash: null,
+  Gradient: false,
+  Trendline: false,
 };
 
 /** Lines over a number or date x axis. `Series` (accessor) splits the data into several lines. */
@@ -181,13 +461,13 @@ function stackedAreaRender(g, o, { width: w, height: h }) {
     .y0((d) => y(d[0]))
     .y1((d) => y(d[1]));
   tip(
-    g.selectAll("path.mark").data(series).join("path").attr("class", "mark layer")
-      .attr("fill", (s) => colour(s.key)).attr("d", area),
+    keyed(g.selectAll("path.mark").data(series).join("path").attr("class", "mark layer")
+      .attr("fill", (s) => colour(s.key)).attr("d", area), (s) => s.key),
     (s) => s.key,
   );
   axisBottom(g, x, h);
   if (o.ShowYAxis) axisLeft(g, y);
-  legend(g, keys, colour, w);
+  legend(g, keys, colour);
 }
 /** Stacked area. Data is rows like `{ day: Date, a: 1, b: 2 }`. `Keys` lists the fields to stack. */
 export const StackedAreaChartSimple = () =>
@@ -198,7 +478,7 @@ export const StackedAreaChartSimple = () =>
 /** Stacked area centred on a wiggling baseline. Same setters as StackedAreaChartSimple. */
 export const StreamGraphSimple = () =>
   makeChart(
-    { X: (d) => d.x, Keys: [], Offset: d3.stackOffsetWiggle, Order: d3.stackOrderInsideOut, Curve: d3.curveBasis, ShowYAxis: false },
+    { X: (d) => d.x, Keys: [], Offset: d3.stackOffsetWiggle, Order: d3.stackOrderInsideOut, Curve: d3.curveBasis, ShowYAxis: false, Grid: "none" },
     stackedAreaRender,
   );
 
@@ -220,16 +500,22 @@ function stackedBarRender(g, o, size) {
   const colour = colours(o, keys);
   const vert = o.Orient === "vertical";
   for (const s of series) {
-    tip(
-      g.append("g").attr("fill", colour(s.key)).selectAll("rect").data(s).join("rect").attr("class", "mark")
-        .attr(vert ? "y" : "x", (d) => bandScale(o.Band(d.data)))
-        .attr(vert ? "height" : "width", bandScale.bandwidth())
-        .attr(vert ? "x" : "y", (d) => (vert ? val(d[0]) : val(d[1])))
-        .attr(vert ? "width" : "height", (d) => Math.abs(val(d[1]) - val(d[0]))),
-      (d) => `${s.key}: ${+(d[1] - d[0]).toFixed(3)}`,
-    );
+    const rects = g.append("g").attr("fill", colour(s.key)).selectAll("rect").data(s).join("rect").attr("class", "mark")
+      .attr(vert ? "y" : "x", (d) => bandScale(o.Band(d.data)))
+      .attr(vert ? "height" : "width", bandScale.bandwidth())
+      .attr(vert ? "x" : "y", (d) => (vert ? val(d[0]) : val(d[1])))
+      .attr(vert ? "width" : "height", (d) => Math.abs(val(d[1]) - val(d[0])));
+    keyed(tip(rects, (d) => `${s.key}: ${V(+(d[1] - d[0]).toFixed(3))}`), s.key);
+    if (o.DataLabels) {
+      // centred in each segment
+      s.forEach((d) => {
+        const mid = (val(d[0]) + val(d[1])) / 2, band = bandScale(o.Band(d.data)) + bandScale.bandwidth() / 2;
+        const [lx, ly] = place(o.Orient)(band, mid);
+        labelAt(g, labelText(o, +(d[1] - d[0]).toFixed(3)), lx, ly + 3, "middle", "#fff").attr("data-key", s.key).attr("pointer-events", "none");
+      });
+    }
   }
-  legend(g, keys, colour, size.width);
+  legend(g, keys, colour);
 }
 /** Stacked bars. Data is rows like `{ name: "Q1", a: 1, b: 2 }`. `Keys` lists the fields to stack. `Normalize(true)` makes every bar 100%. */
 export const StackedBarChartSimple = () =>
@@ -251,8 +537,12 @@ function lollipopRender(g, o, size) {
     tip(
       heads.append("circle").datum(d).attr("class", "mark").attr("cx", x2).attr("cy", y2)
         .attr("r", o.Radius).attr("fill", colour(o.Band(d))),
-      () => `${o.Band(d)}: ${o.Val(d)}`,
+      () => `${o.Band(d)}: ${V(o.Val(d))}`,
     );
+    if (o.DataLabels) {
+      const vert = o.Orient === "vertical";
+      labelAt(g, labelText(o, o.Val(d)), vert ? x2 + o.Radius + 4 : x2, vert ? y2 + 3 : y2 - o.Radius - 4, vert ? "start" : "middle", "currentColor");
+    }
   });
 }
 /** Lollipop chart: a bar chart drawn as a stem and a dot. Same setters as BarChartSimple. */
@@ -266,7 +556,7 @@ function dumbbellRender(g, o, { width: w, height: h }) {
   const x = d3.scaleLinear().domain([Math.min(0, d3.min(all) ?? 0), d3.max(all) ?? 1]).nice().range([0, w]);
   axisLeft(g, y);
   axisBottom(g, x, h, 5);
-  const [c0, c1] = o.ColourRange;
+  const [c0, c1] = palette();
   rows.forEach((d) => {
     const cy = y(o.Band(d)) + y.bandwidth() / 2;
     g.append("line").attr("class", "mark").attr("stroke", "#999").attr("stroke-width", 2)
@@ -324,8 +614,14 @@ function waterfallRender(g, o, size) {
       .attr("x", (s) => bandScale(s.name)).attr("width", bandScale.bandwidth())
       .attr("y", (s) => val(Math.max(s.start, s.end))).attr("height", (s) => Math.abs(val(s.start) - val(s.end)))
       .attr("fill", (s) => (s.isTotal ? o.Total : s.delta >= 0 ? o.Up : o.Down)),
-    (s) => `${s.name}: ${s.delta >= 0 ? "+" : ""}${s.delta}`,
+    (s) => `${s.name}: ${s.delta >= 0 ? "+" : ""}${V(s.delta)}`,
   );
+  if (o.DataLabels) {
+    for (const s of steps) {
+      const top = s.end >= s.start;
+      labelAt(g, labelText(o, s.delta), bandScale(s.name) + bandScale.bandwidth() / 2, top ? val(s.end) - 4 : val(s.end) + 12, "middle", "currentColor");
+    }
+  }
 }
 /** Waterfall: running total built from positive and negative steps, plus an optional total bar. */
 export const WaterfallChartSimple = () =>
@@ -342,11 +638,16 @@ function histogramRender(g, o, { width: w, height: h }) {
   axisBottom(g, x, h);
   axisLeft(g, y);
   tip(
-    g.selectAll("rect").data(bins).join("rect").attr("class", "mark").attr("fill", o.ColourRange[0])
+    g.selectAll("rect").data(bins).join("rect").attr("class", "mark").attr("fill", palette()[0])
       .attr("x", (b) => x(b.x0) + 1).attr("width", (b) => Math.max(0, x(b.x1) - x(b.x0) - 1))
       .attr("y", (b) => y(b.length)).attr("height", (b) => h - y(b.length)),
     (b) => `${b.x0} to ${b.x1}: ${b.length}`,
   );
+  if (o.DataLabels) {
+    for (const b of bins) {
+      if (b.length) labelAt(g, labelText(o, b.length), (x(b.x0) + x(b.x1)) / 2, y(b.length) - 4, "middle", "currentColor");
+    }
+  }
 }
 /** Histogram of one numeric field. `Thresholds` is a bin count or a list of bin edges. */
 export const HistogramSimple = () => makeChart({ Value: (d) => d, Thresholds: 10, Domain: null }, histogramRender);
@@ -355,28 +656,34 @@ export const HistogramSimple = () => makeChart({ Value: (d) => d, Thresholds: 10
 
 function scatterRender(g, o, { width: w, height: h }) {
   const rows = o.Data;
-  const x = d3.scaleLinear().domain(o.DomainX ?? d3.extent(rows, o.X)).nice().range([0, w]);
-  const y = d3.scaleLinear().domain(o.DomainY ?? d3.extent(rows, o.Y)).nice().range([h, 0]);
-  axisBottom(g, x, h);
+  const xs = valueScale(o.XScale)().domain(o.DomainX ?? d3.extent(rows, o.X)).nice().range([0, w]);
+  const y = valueScale(o.YScale)().domain(o.DomainY ?? d3.extent(rows, o.Y)).nice().range([h, 0]);
+  axisBottom(g, xs, h);
   axisLeft(g, y);
   const groups = o.Group ? [...new Set(rows.map(o.Group))] : [];
   const colour = colours(o, groups);
-  const radius =
+  const rOf =
     typeof o.R === "function"
-      ? d3.scaleSqrt().domain([0, d3.max(rows, o.R) || 1]).range([2, o.MaxRadius])
+      ? ((scale) => (d) => scale(o.R(d)))(d3.scaleSqrt().domain([0, d3.max(rows, o.R) || 1]).range([2, o.MaxRadius]))
       : () => o.R;
-  const rOf = (d) => (typeof o.R === "function" ? radius(o.R(d)) : o.R);
-  tip(
+  keyed(tip(
     g.selectAll("circle").data(rows).join("circle").attr("class", "mark")
-      .attr("cx", (d) => x(o.X(d))).attr("cy", (d) => y(o.Y(d))).attr("r", rOf)
-      .attr("fill", (d) => (o.Group ? colour(o.Group(d)) : o.ColourRange[0])).attr("fill-opacity", o.Opacity),
-    (d) => `${o.Group ? o.Group(d) + ": " : ""}(${o.X(d)}, ${o.Y(d)})`,
-  );
-  if (groups.length > 1) legend(g, groups, colour, w);
+      .attr("cx", (d) => xs(o.X(d))).attr("cy", (d) => y(o.Y(d))).attr("r", rOf)
+      .attr("fill", (d) => (o.Group ? colour(o.Group(d)) : palette()[0])).attr("fill-opacity", o.Opacity),
+    (d) => `${o.Group ? o.Group(d) + ": " : ""}(${V(o.X(d))}, ${V(o.Y(d))})`,
+  ), (d) => (o.Group ? o.Group(d) : ""));
+  if (o.Trendline) {
+    const t = trendPoints(rows.map((d) => [+o.X(d), +o.Y(d)]));
+    if (t) {
+      g.append("line").attr("class", "trendline").attr("stroke", "currentColor").attr("stroke-opacity", 0.6).attr("stroke-dasharray", "5 4")
+        .attr("x1", xs(t[0][0])).attr("y1", y(t[0][1])).attr("x2", xs(t[1][0])).attr("y2", y(t[1][1]));
+    }
+  }
+  if (groups.length > 1) legend(g, groups, colour);
 }
 /** Scatter plot. Set `R` to a number for a fixed size, or an accessor to make it a bubble chart. `Group` colours the dots. */
 export const ScatterPlotSimple = () =>
-  makeChart({ X: (d) => d.x, Y: (d) => d.y, R: 4, MaxRadius: 24, Group: null, Opacity: 0.7, DomainX: null, DomainY: null }, scatterRender);
+  makeChart({ X: (d) => d.x, Y: (d) => d.y, R: 4, MaxRadius: 24, Group: null, Opacity: 0.7, DomainX: null, DomainY: null, XScale: "linear", YScale: "linear", Trendline: false }, scatterRender);
 
 function candlestickRender(g, o, { width: w, height: h }) {
   const rows = o.Data.slice().sort((a, b) => o.Date(a) - o.Date(b));
@@ -422,7 +729,7 @@ function boxPlotRender(g, o, size) {
   const { bandScale, val } = bandValueScales(g, o, size, groups.map((s) => s.key), d3.extent(all));
   const colour = colours(o, groups.map((s) => s.key));
   const p = place(o.Orient);
-  const line = (b1, v1, b2, v2, stroke = "#333") => {
+  const line = (b1, v1, b2, v2, stroke = "currentColor") => {
     const [x1, y1] = p(b1, v1), [x2, y2] = p(b2, v2);
     g.append("line").attr("stroke", stroke).attr("x1", x1).attr("y1", y1).attr("x2", x2).attr("y2", y2);
   };
@@ -433,16 +740,16 @@ function boxPlotRender(g, o, size) {
     const [bx, by] = p(b0, val(s.q3));
     const vert = o.Orient === "vertical";
     tip(
-      g.append("rect").attr("class", "mark").attr("fill", colour(s.key)).attr("fill-opacity", 0.6).attr("stroke", "#333")
+      g.append("rect").attr("class", "mark").attr("fill", colour(s.key)).attr("fill-opacity", 0.6).attr("stroke", "currentColor")
         .attr("x", vert ? val(s.q1) : bx).attr("y", vert ? by : val(s.q3))
         .attr("width", vert ? val(s.q3) - val(s.q1) : bandScale.bandwidth())
         .attr("height", vert ? bandScale.bandwidth() : val(s.q1) - val(s.q3)),
       () => `${s.key}: min ${s.lo}, Q1 ${s.q1}, median ${s.median}, Q3 ${s.q3}, max ${s.hi}`,
     );
-    line(b0, val(s.median), b1, val(s.median), "#000");
+    line(b0, val(s.median), b1, val(s.median), "currentColor");
     for (const out of s.outliers) {
       const [cx, cy] = p(mid, val(out));
-      g.append("circle").attr("class", "outlier").attr("cx", cx).attr("cy", cy).attr("r", 3).attr("fill", "none").attr("stroke", "#333");
+      g.append("circle").attr("class", "outlier").attr("cx", cx).attr("cy", cy).attr("r", 3).attr("fill", "none").attr("stroke", "currentColor");
     }
   }
 }
@@ -455,24 +762,36 @@ export const BoxPlotSimple = () =>
 function pieRender(g, o, { width: w, height: h }) {
   const rows = o.Data;
   const radius = Math.min(w, h) / 2;
-  const colour = colours(o, rows.map(o.Key));
-  const arcs = d3.pie().sort(null).value(o.Val).padAngle(o.PadAngle)(rows);
-  const arc = d3.arc().innerRadius(radius * o.InnerRadius).outerRadius(radius);
+  const keys = rows.map(o.Key);
+  const colour = colours(o, keys);
+  const total = d3.sum(rows, o.Val) || 1;
+  const arcs = d3.pie().sort(null).value(o.Val).padAngle(o.PadAngle).startAngle(o.StartAngle).endAngle(o.EndAngle)(rows);
+  const arc = d3.arc().innerRadius(radius * o.InnerRadius).outerRadius(radius).cornerRadius(o.CornerRadius);
   const centre = g.append("g").attr("transform", `translate(${w / 2},${h / 2})`);
-  tip(
+  keyed(tip(
     centre.selectAll("path").data(arcs).join("path").attr("class", "mark")
       .attr("fill", (a) => colour(o.Key(a.data))).attr("d", arc),
-    (a) => `${o.Key(a.data)}: ${o.Val(a.data)}`,
-  );
+    (a) => `${o.Key(a.data)}: ${V(o.Val(a.data))} (${d3.format(".1%")(o.Val(a.data) / total)})`,
+  ), (a) => o.Key(a.data));
   if (o.Labels) {
-    const label = d3.arc().innerRadius(radius * (1 + o.InnerRadius) / 2).outerRadius(radius * (1 + o.InnerRadius) / 2);
+    const mid = radius * (1 + o.InnerRadius) / 2;
+    const label = d3.arc().innerRadius(mid).outerRadius(mid);
+    const text = (a) => (o.ShowPercent ? d3.format(".0%")(o.Val(a.data) / total) : o.Key(a.data));
     centre.selectAll("text").data(arcs.filter((a) => a.endAngle - a.startAngle > 0.25)).join("text")
-      .attr("transform", (a) => `translate(${label.centroid(a)})`).attr("text-anchor", "middle").attr("font-size", 10).text((a) => o.Key(a.data));
+      .attr("transform", (a) => `translate(${label.centroid(a)})`).attr("text-anchor", "middle").attr("font-size", 10)
+      .attr("fill", "#fff").attr("pointer-events", "none").text(text);
   }
+  if (o.CentreText) {
+    centre.append("text").attr("text-anchor", "middle").attr("dy", "0.35em").attr("font-size", radius * 0.22).attr("font-weight", 600).attr("fill", "currentColor").text(o.CentreText);
+  }
+  if (o.Legend !== "none" && o.ShowLegend) legend(g, keys, colour);
 }
 /** Pie chart. `InnerRadius` is a fraction of the radius (0 = pie, 0.6 = donut). */
 export const PieChartSimple = () =>
-  makeChart({ Key: (d) => d.name, Val: (d) => d.value, InnerRadius: 0, PadAngle: 0.01, Labels: true }, pieRender);
+  makeChart(
+    { Key: (d) => d.name, Val: (d) => d.value, InnerRadius: 0, PadAngle: 0.01, Labels: true, ShowPercent: false, StartAngle: 0, EndAngle: 2 * Math.PI, CornerRadius: 0, CentreText: "", ShowLegend: false },
+    pieRender,
+  );
 
 function funnelRender(g, o, { width: w, height: h }) {
   const rows = o.Data;
@@ -487,24 +806,24 @@ function funnelRender(g, o, { width: w, height: h }) {
     tip(
       g.append("path").attr("class", "mark").attr("fill", colour(o.Stage(d)))
         .attr("d", `M${c - top},${y0}L${c + top},${y0}L${c + bottom},${y1}L${c - bottom},${y1}Z`),
-      () => `${o.Stage(d)}: ${o.Val(d)}`,
+      () => `${o.Stage(d)}: ${V(o.Val(d))}`,
     );
-    g.append("text").attr("x", c).attr("y", (y0 + y1) / 2).attr("dy", "0.35em").attr("text-anchor", "middle").attr("fill", "#fff").attr("font-size", 11).text(`${o.Stage(d)}: ${o.Val(d)}`);
+    g.append("text").attr("x", c).attr("y", (y0 + y1) / 2).attr("dy", "0.35em").attr("text-anchor", "middle").attr("fill", "#fff").attr("font-size", 11).text(`${o.Stage(d)}: ${o.ShowPercent ? d3.format(".0%")(o.Val(d) / max) : V(o.Val(d))}`);
   });
 }
 /** Funnel chart: stages from widest to narrowest. */
-export const FunnelChartSimple = () => makeChart({ Stage: (d) => d.name, Val: (d) => d.value }, funnelRender);
+export const FunnelChartSimple = () => makeChart({ Stage: (d) => d.name, Val: (d) => d.value, ShowPercent: false }, funnelRender);
 
 function gaugeRender(g, o, { width: w, height: h }) {
   const radius = Math.min(w / 2, h);
   const angle = d3.scaleLinear().domain([o.Min, o.Max]).range([-Math.PI / 2, Math.PI / 2]).clamp(true);
   const arc = d3.arc().innerRadius(radius * 0.7).outerRadius(radius);
   const value = o.Value;
-  const colour = (o.Thresholds.find(([upTo]) => value <= upTo) || o.Thresholds[o.Thresholds.length - 1] || [0, o.ColourRange[0]])[1];
+  const colour = (o.Thresholds.find(([upTo]) => value <= upTo) || o.Thresholds[o.Thresholds.length - 1] || [0, palette()[0]])[1];
   const centre = g.append("g").attr("transform", `translate(${w / 2},${h})`);
   centre.append("path").attr("fill", "#e5e7eb").attr("d", arc({ startAngle: -Math.PI / 2, endAngle: Math.PI / 2 }));
   centre.append("path").attr("class", "mark").attr("fill", colour).attr("d", arc({ startAngle: -Math.PI / 2, endAngle: angle(value) }));
-  centre.append("text").attr("text-anchor", "middle").attr("y", -radius * 0.1).attr("font-size", radius * 0.28).attr("font-weight", "bold").text(o.Format(value));
+  centre.append("text").attr("text-anchor", "middle").attr("y", -radius * 0.1).attr("font-size", radius * 0.28).attr("font-weight", "bold").text(makeFormatter(o, o.ValueFormat)?.(value) ?? o.Format(value));
   if (o.Label) centre.append("text").attr("text-anchor", "middle").attr("y", 14).attr("font-size", 11).attr("fill", "#666").text(o.Label);
 }
 /** Half-circle gauge for one value. `Thresholds` is `[[upTo, colour], ...]`. Does not use `Data`. */
@@ -512,6 +831,7 @@ export const GaugeChartSimple = () =>
   makeChart(
     { Value: 0, Min: 0, Max: 100, Thresholds: [[60, "#d1495b"], [85, "#edae49"], [Infinity, "#4e9f50"]], Label: "", Format: d3.format(".0f"), MarginBottom: 40 },
     gaugeRender,
+    { empty: () => false },
   );
 
 function radarRender(g, o, { width: w, height: h }) {
@@ -534,12 +854,12 @@ function radarRender(g, o, { width: w, height: h }) {
   const colour = colours(o, rows.map(o.Series));
   const shape = d3.lineRadial().angle((_, i) => ang(i)).radius((r) => r).curve(d3.curveLinearClosed);
   tip(
-    centre.selectAll("path.mark").data(rows).join("path").attr("class", "mark").attr("fill", (d) => colour(o.Series(d)))
+    keyed(centre.selectAll("path.mark").data(rows).join("path").attr("class", "mark").attr("fill", (d) => colour(o.Series(d)))
       .attr("fill-opacity", 0.25).attr("stroke", (d) => colour(o.Series(d))).attr("stroke-width", 2)
-      .attr("d", (d) => shape(axes.map((a) => r(o.Value(d, a))))),
+      .attr("d", (d) => shape(axes.map((a) => r(o.Value(d, a))))), (d) => o.Series(d)),
     (d) => o.Series(d),
   );
-  if (rows.length > 1) legend(g, rows.map(o.Series), colour, w);
+  if (rows.length > 1) legend(g, rows.map(o.Series), colour);
 }
 /** Radar chart. Each row of Data is one shape. `Axes` lists the fields, `Value(row, axis)` reads one. */
 export const RadarChartSimple = () =>
@@ -562,20 +882,21 @@ function topColour(o, root) {
   return (node) => colour(o.Name((node.ancestors().reverse()[1] || node).data));
 }
 
+const tiles = { squarify: d3.treemapSquarify, binary: d3.treemapBinary, slice: d3.treemapSlice, dice: d3.treemapDice, sliceDice: d3.treemapSliceDice };
 function treemapRender(g, o, { width: w, height: h }) {
   const root = hierarchyOf(o);
-  d3.treemap().size([w, h]).paddingInner(1).round(true)(root);
+  d3.treemap().tile(tiles[o.Tile] || d3.treemapSquarify).size([w, h]).paddingInner(o.Padding).round(true)(root);
   const colour = topColour(o, root);
   const leaves = root.leaves();
   const cell = g.selectAll("g").data(leaves).join("g").attr("transform", (d) => `translate(${d.x0},${d.y0})`);
   tip(
     cell.append("rect").attr("class", "mark").attr("fill", colour).attr("width", (d) => d.x1 - d.x0).attr("height", (d) => d.y1 - d.y0),
-    (d) => `${d.ancestors().reverse().map((n) => o.Name(n.data)).join(" / ")}: ${d.value}`,
+    (d) => `${d.ancestors().reverse().map((n) => o.Name(n.data)).join(" / ")}: ${V(d.value)}`,
   );
   cell.filter((d) => d.x1 - d.x0 > 40 && d.y1 - d.y0 > 16).append("text").attr("x", 4).attr("y", 13).attr("font-size", 11).attr("fill", "#fff").text((d) => o.Name(d.data));
 }
 /** Treemap. Data is a nested object like `{ name, children: [{ name, value }] }`. */
-export const TreemapChartSimple = () => makeChart({ ...hierarchyDefaults }, treemapRender);
+export const TreemapChartSimple = () => makeChart({ ...hierarchyDefaults, Tile: "squarify", Padding: 1 }, treemapRender, { empty: () => false });
 
 function sunburstRender(g, o, { width: w, height: h }) {
   const root = hierarchyOf(o);
@@ -591,7 +912,7 @@ function sunburstRender(g, o, { width: w, height: h }) {
   );
 }
 /** Sunburst. Same data as TreemapChartSimple, drawn as rings. */
-export const SunburstChartSimple = () => makeChart({ ...hierarchyDefaults }, sunburstRender);
+export const SunburstChartSimple = () => makeChart({ ...hierarchyDefaults }, sunburstRender, { empty: () => false });
 
 function packRender(g, o, { width: w, height: h }) {
   const root = hierarchyOf(o);
@@ -608,7 +929,7 @@ function packRender(g, o, { width: w, height: h }) {
     .attr("dy", "0.35em").attr("text-anchor", "middle").attr("font-size", 10).attr("fill", "#fff").text((d) => o.Name(d.data));
 }
 /** Circle packing. Same data as TreemapChartSimple, drawn as nested circles. */
-export const CirclePackChartSimple = () => makeChart({ ...hierarchyDefaults }, packRender);
+export const CirclePackChartSimple = () => makeChart({ ...hierarchyDefaults }, packRender, { empty: () => false });
 
 function treeRender(g, o, { width: w, height: h }) {
   const root = d3.hierarchy(o.Data, o.Children);
@@ -622,7 +943,7 @@ function treeRender(g, o, { width: w, height: h }) {
 }
 /** Tree diagram (tidy tree). Data is a nested object like `{ name, children: [...] }`. */
 export const TreeDiagramSimple = () =>
-  makeChart({ Children: (d) => d.children, Name: (d) => d.name, LabelSpace: 90, Data: { name: "root" } }, treeRender);
+  makeChart({ Children: (d) => d.children, Name: (d) => d.name, LabelSpace: 90, Data: { name: "root" } }, treeRender, { empty: () => false });
 
 function chordRender(g, o, { width: w, height: h }) {
   const matrix = o.Data;
@@ -677,11 +998,14 @@ function forceRender(g, o, { width: w, height: h }) {
 }
 /** Force-directed network. Data is `{ nodes: [{ id, group }], links: [{ source, target }] }`. */
 export const ForceNetworkSimple = () =>
-  makeChart({ Data: { nodes: [], links: [] }, Group: (d) => d.group, NodeRadius: 6, Charge: -60, LinkDistance: 40, Iterations: 300 }, forceRender);
+  makeChart({ Data: { nodes: [], links: [] }, Group: (d) => d.group, NodeRadius: 6, Charge: -60, LinkDistance: 40, Iterations: 300 }, forceRender, {
+    empty: (o) => !(o.Data.nodes && o.Data.nodes.length),
+  });
 
+const aligns = { justify: sankeyJustify, left: sankeyLeft, right: sankeyRight, center: sankeyCenter };
 function sankeyRender(g, o, { width: w, height: h }) {
   const graph = { nodes: (o.Data.nodes || []).map((d) => ({ ...d })), links: (o.Data.links || []).map((d) => ({ ...d })) };
-  const layout = sankey().nodeId((d) => d.name).nodeWidth(o.NodeWidth).nodePadding(o.NodePadding).extent([[0, 0], [w, h]]);
+  const layout = sankey().nodeId((d) => d.name).nodeWidth(o.NodeWidth).nodePadding(o.NodePadding).nodeAlign(aligns[o.Align] || sankeyJustify).extent([[0, 0], [w, h]]);
   const { nodes, links } = layout(graph);
   const colour = colours(o, nodes.map((d) => d.name));
   tip(
@@ -700,7 +1024,9 @@ function sankeyRender(g, o, { width: w, height: h }) {
 }
 /** Sankey diagram. Data is `{ nodes: [{ name }], links: [{ source, target, value }] }` with names as source and target. */
 export const SankeyDiagramSimple = () =>
-  makeChart({ Data: { nodes: [], links: [] }, NodeWidth: 14, NodePadding: 10, MarginLeft: 60, MarginRight: 60 }, sankeyRender);
+  makeChart({ Data: { nodes: [], links: [] }, NodeWidth: 14, NodePadding: 10, Align: "justify", MarginLeft: 60, MarginRight: 60 }, sankeyRender, {
+    empty: (o) => !(o.Data.nodes && o.Data.nodes.length),
+  });
 
 // --- grids -----------------------------------------------------------------------------
 
@@ -711,7 +1037,7 @@ function calendarRender(g, o, { width: w, height: h }) {
   const start = d3.timeWeek.floor(d3.min(dates));
   const weeks = d3.timeWeek.count(start, d3.max(dates)) + 1;
   const cell = Math.floor(Math.min(w / weeks, h / 7));
-  const colour = d3.scaleSequential(o.Interpolator).domain(d3.extent(rows, o.Value));
+  const colour = d3.scaleSequential(resolveInterpolator(o.Interpolator)).domain(d3.extent(rows, o.Value));
   tip(
     g.selectAll("rect").data(rows).join("rect").attr("class", "mark")
       .attr("x", (d) => d3.timeWeek.count(start, o.Date(d)) * cell).attr("y", (d) => o.Date(d).getDay() * cell)
@@ -732,7 +1058,7 @@ function heatGridRender(g, o, { width: w, height: h }) {
   const xs = [...new Set(rows.map(o.X))], ys = [...new Set(rows.map(o.Y))];
   const x = d3.scaleBand().domain(xs).range([0, w]).padding(0.03);
   const y = d3.scaleBand().domain(ys).range([0, h]).padding(0.03);
-  const colour = d3.scaleSequential(o.Interpolator).domain(d3.extent(rows, o.Value));
+  const colour = d3.scaleSequential(resolveInterpolator(o.Interpolator)).domain(d3.extent(rows, o.Value));
   axisBottom(g, x, h);
   axisLeft(g, y);
   tip(
@@ -757,16 +1083,16 @@ function parallelRender(g, o, { width: w, height: h }) {
   const colour = colours(o, groups);
   const line = d3.line();
   tip(
-    g.append("g").attr("fill", "none").attr("stroke-opacity", 0.6).selectAll("path").data(rows).join("path").attr("class", "mark")
-      .attr("stroke", (d) => (o.Group ? colour(o.Group(d)) : o.ColourRange[0]))
-      .attr("d", (d) => line(dims.map((dim) => [x(dim), y[dim](o.Value(d, dim))]))),
+    keyed(g.append("g").attr("fill", "none").attr("stroke-opacity", 0.6).selectAll("path").data(rows).join("path").attr("class", "mark")
+      .attr("stroke", (d) => (o.Group ? colour(o.Group(d)) : palette()[0]))
+      .attr("d", (d) => line(dims.map((dim) => [x(dim), y[dim](o.Value(d, dim))]))), (d) => (o.Group ? o.Group(d) : "")),
     (d) => (o.Group ? o.Group(d) : ""),
   );
   for (const dim of dims) {
     const axis = g.append("g").attr("transform", `translate(${x(dim)},0)`).call(d3.axisLeft(y[dim]).ticks(5));
     axis.append("text").attr("y", -8).attr("text-anchor", "middle").attr("fill", "#000").attr("font-weight", "bold").text(dim);
   }
-  if (groups.length > 1) legend(g, groups, colour, w);
+  if (groups.length > 1) legend(g, groups, colour);
 }
 /** Parallel coordinates: one line per row across several numeric fields. `Dimensions` lists the fields. */
 export const ParallelCoordinatesSimple = () =>

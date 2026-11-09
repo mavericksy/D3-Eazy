@@ -5,7 +5,7 @@ const dom = new JSDOM(`<!doctype html><html><body></body></html>`, {
   pretendToBeVisual: true,
 });
 
-for (const key of ["window", "document", "CustomEvent", "Event"]) {
+for (const key of ["window", "document", "CustomEvent", "Event", "XMLSerializer", "KeyboardEvent", "MouseEvent"]) {
   Object.defineProperty(globalThis, key, {
     value: dom.window[key],
     configurable: true,
@@ -19,6 +19,10 @@ dom.window.Element.prototype.getBoundingClientRect = function () {
 };
 
 dom.window.SVGElement.prototype.getTotalLength = () => 100;
+// d3 transitions on a "transform" attribute read this. jsdom has no SVG transform list.
+Object.defineProperty(dom.window.SVGElement.prototype, "transform", {
+  get: () => ({ baseVal: { consolidate: () => null } }),
+});
 
 /** Create a fresh container div, attach it to the page, and return it. */
 export function makeContainer(id) {

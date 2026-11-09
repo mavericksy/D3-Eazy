@@ -12,8 +12,12 @@ import {
   HeatMapBlockedSimple,
   CircularHeatChartSimple,
   ready,
+  downloadSvg,
+  downloadPng,
+  palettes,
 } from "../d3-eazy.js";
 import { moreExamples } from "./example-more.jsx";
+import { renderPlayground } from "./playground.jsx";
 
 // Shared sample data.
 const languages = [
@@ -258,6 +262,28 @@ function renderExample(example, index) {
   const details = card.append("details");
   details.append("summary").text("Show code");
   details.append("pre").append("code").text(example.make.toString());
+  const save = card.append("div").attr("class", "controls small");
+  save.append("button").attr("type", "button").text("Download SVG").on("click", () => downloadSvg(target.node(), `${slug(example.title)}.svg`));
+  save.append("button").attr("type", "button").text("Download PNG").on("click", () => downloadPng(target.node(), `${slug(example.title)}.png`));
+  return chart;
+}
+const slug = (text) => text.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
+function applyTheme(name, charts) {
+  document.body.classList.toggle("dark", name === "dark" || (name === "auto" && matchMedia("(prefers-color-scheme: dark)").matches));
+  charts.forEach((chart) => chart.Theme(name));
 }
 
-ready(() => [...examples, ...moreExamples].forEach(renderExample));
+ready(() => {
+  const playground = renderPlayground(document.getElementById("examples"), (name) => applyTheme(name, []));
+  const charts = [...examples, ...moreExamples].map(renderExample);
+  // Page-wide controls change every chart with one setter call each.
+  const bar = d3.select("#global");
+  const themeSelect = bar.append("label").text("Theme ").append("select");
+  themeSelect.selectAll("option").data(["light", "dark", "minimal", "highContrast", "colourBlind", "auto"]).join("option").text((d) => d);
+  themeSelect.on("change", () => applyTheme(themeSelect.property("value"), charts));
+  const paletteSelect = bar.append("label").text("Palette ").append("select");
+  paletteSelect.selectAll("option").data(["(theme)", ...Object.keys(palettes)]).join("option").text((d) => d);
+  paletteSelect.on("change", () => charts.forEach((c) => c.Palette && c.Palette(paletteSelect.property("value") === "(theme)" ? null : paletteSelect.property("value"))));
+  void playground;
+});

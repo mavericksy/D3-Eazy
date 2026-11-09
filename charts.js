@@ -1,6 +1,7 @@
 import * as d3 from "d3";
 import { DateTime } from "luxon";
 import { addEventListener } from "./events.js";
+import { applyFrame, wireInteractions } from "./features.js";
 //
 // True when `a` is undefined. If `fn` is a function, test fn(a) instead.
 const isUndef = (a, fn) => (typeof fn === "function" ? fn(a) : a) === undefined;
@@ -60,6 +61,12 @@ function getBaseSVG(_selection, _svg_id, _dimensions, _responsivefy, _a11y) {
       ids.push(prefix + "desc");
     }
     svg.attr("aria-labelledby", ids.join(" "));
+  }
+  // Theme, background, heading and click/hover callbacks (see features.js).
+  if (_a11y && _a11y.frame) {
+    const box = (svg.attr("viewBox") || "0 0 600 400").split(/\s+/).map(Number);
+    const theme = applyFrame(svg, _a11y, box[2], box[3]);
+    wireInteractions(svg, _a11y, theme);
   }
   return svg;
 }
@@ -223,7 +230,11 @@ function BarChartSimple() {
   //
 
   // BarChartSimple
-  var a11y_ = { title: "", description: "" };
+  var a11y_ = {
+    title: "", description: "", frame: true, Theme: "light", ShowTitle: false, Subtitle: "", Caption: "",
+    TitleAlign: "left", Background: null, FontFamily: null, FontSize: null, Tooltip: "none",
+    OnClick: null, OnHover: null, HoverHighlight: false, MarkOpacity: null, Focusable: false,
+  };
   var redraw_ = makeRedraw(chart);
   function chart(selection) {
     redraw_.mount(selection);
@@ -512,6 +523,76 @@ function BarChartSimple() {
     return chart;
   };
   //
+  chart.Theme = function (val) {
+    if (!arguments.length) return a11y_.Theme;
+    a11y_.Theme = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.ShowTitle = function (val) {
+    if (!arguments.length) return a11y_.ShowTitle;
+    a11y_.ShowTitle = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Subtitle = function (val) {
+    if (!arguments.length) return a11y_.Subtitle;
+    a11y_.Subtitle = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Caption = function (val) {
+    if (!arguments.length) return a11y_.Caption;
+    a11y_.Caption = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.TitleAlign = function (val) {
+    if (!arguments.length) return a11y_.TitleAlign;
+    a11y_.TitleAlign = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Background = function (val) {
+    if (!arguments.length) return a11y_.Background;
+    a11y_.Background = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.FontFamily = function (val) {
+    if (!arguments.length) return a11y_.FontFamily;
+    a11y_.FontFamily = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.FontSize = function (val) {
+    if (!arguments.length) return a11y_.FontSize;
+    a11y_.FontSize = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.OnClick = function (val) {
+    if (!arguments.length) return a11y_.OnClick;
+    a11y_.OnClick = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.OnHover = function (val) {
+    if (!arguments.length) return a11y_.OnHover;
+    a11y_.OnHover = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
   chart.SvgID = function (val) {
     if (!arguments.length) return svg_id;
     svg_id = val;
@@ -784,7 +865,11 @@ function GroupedBarChartSimple() {
     updateTextDeltaX;
   //
   // GroupedBarChartSimple
-  var a11y_ = { title: "", description: "" };
+  var a11y_ = {
+    title: "", description: "", frame: true, Theme: "light", ShowTitle: false, Subtitle: "", Caption: "",
+    TitleAlign: "left", Background: null, FontFamily: null, FontSize: null, Tooltip: "none",
+    OnClick: null, OnHover: null, HoverHighlight: false, MarkOpacity: null, Focusable: false,
+  };
   var redraw_ = makeRedraw(chart);
   function chart(selection) {
     redraw_.mount(selection);
@@ -953,6 +1038,76 @@ function GroupedBarChartSimple() {
   chart.Description = function (val) {
     if (!arguments.length) return a11y_.description;
     a11y_.description = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Theme = function (val) {
+    if (!arguments.length) return a11y_.Theme;
+    a11y_.Theme = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.ShowTitle = function (val) {
+    if (!arguments.length) return a11y_.ShowTitle;
+    a11y_.ShowTitle = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Subtitle = function (val) {
+    if (!arguments.length) return a11y_.Subtitle;
+    a11y_.Subtitle = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Caption = function (val) {
+    if (!arguments.length) return a11y_.Caption;
+    a11y_.Caption = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.TitleAlign = function (val) {
+    if (!arguments.length) return a11y_.TitleAlign;
+    a11y_.TitleAlign = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Background = function (val) {
+    if (!arguments.length) return a11y_.Background;
+    a11y_.Background = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.FontFamily = function (val) {
+    if (!arguments.length) return a11y_.FontFamily;
+    a11y_.FontFamily = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.FontSize = function (val) {
+    if (!arguments.length) return a11y_.FontSize;
+    a11y_.FontSize = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.OnClick = function (val) {
+    if (!arguments.length) return a11y_.OnClick;
+    a11y_.OnClick = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.OnHover = function (val) {
+    if (!arguments.length) return a11y_.OnHover;
+    a11y_.OnHover = val;
     redraw_.schedule();
     return chart;
   };
@@ -1153,7 +1308,11 @@ function DonutChartSimple() {
       });
   };
   //
-  var a11y_ = { title: "", description: "" };
+  var a11y_ = {
+    title: "", description: "", frame: true, Theme: "light", ShowTitle: false, Subtitle: "", Caption: "",
+    TitleAlign: "left", Background: null, FontFamily: null, FontSize: null, Tooltip: "none",
+    OnClick: null, OnHover: null, HoverHighlight: false, MarkOpacity: null, Focusable: false,
+  };
   var redraw_ = makeRedraw(chart);
   function chart(selection) {
     redraw_.mount(selection);
@@ -1339,6 +1498,76 @@ function DonutChartSimple() {
     return chart;
   };
   //
+  chart.Theme = function (val) {
+    if (!arguments.length) return a11y_.Theme;
+    a11y_.Theme = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.ShowTitle = function (val) {
+    if (!arguments.length) return a11y_.ShowTitle;
+    a11y_.ShowTitle = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Subtitle = function (val) {
+    if (!arguments.length) return a11y_.Subtitle;
+    a11y_.Subtitle = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Caption = function (val) {
+    if (!arguments.length) return a11y_.Caption;
+    a11y_.Caption = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.TitleAlign = function (val) {
+    if (!arguments.length) return a11y_.TitleAlign;
+    a11y_.TitleAlign = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Background = function (val) {
+    if (!arguments.length) return a11y_.Background;
+    a11y_.Background = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.FontFamily = function (val) {
+    if (!arguments.length) return a11y_.FontFamily;
+    a11y_.FontFamily = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.FontSize = function (val) {
+    if (!arguments.length) return a11y_.FontSize;
+    a11y_.FontSize = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.OnClick = function (val) {
+    if (!arguments.length) return a11y_.OnClick;
+    a11y_.OnClick = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.OnHover = function (val) {
+    if (!arguments.length) return a11y_.OnHover;
+    a11y_.OnHover = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
   chart.SvgID = function (val) {
     if (!arguments.length) return svg_id;
     svg_id = val;
@@ -1509,7 +1738,11 @@ function LineLinearSpark() {
   var updateData;
   //
   //
-  var a11y_ = { title: "", description: "" };
+  var a11y_ = {
+    title: "", description: "", frame: true, Theme: "light", ShowTitle: false, Subtitle: "", Caption: "",
+    TitleAlign: "left", Background: null, FontFamily: null, FontSize: null, Tooltip: "none",
+    OnClick: null, OnHover: null, HoverHighlight: false, MarkOpacity: null, Focusable: false,
+  };
   var redraw_ = makeRedraw(chart);
   function chart(selection) {
     redraw_.mount(selection);
@@ -1778,6 +2011,76 @@ function LineLinearSpark() {
     return chart;
   };
   //
+  chart.Theme = function (val) {
+    if (!arguments.length) return a11y_.Theme;
+    a11y_.Theme = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.ShowTitle = function (val) {
+    if (!arguments.length) return a11y_.ShowTitle;
+    a11y_.ShowTitle = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Subtitle = function (val) {
+    if (!arguments.length) return a11y_.Subtitle;
+    a11y_.Subtitle = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Caption = function (val) {
+    if (!arguments.length) return a11y_.Caption;
+    a11y_.Caption = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.TitleAlign = function (val) {
+    if (!arguments.length) return a11y_.TitleAlign;
+    a11y_.TitleAlign = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Background = function (val) {
+    if (!arguments.length) return a11y_.Background;
+    a11y_.Background = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.FontFamily = function (val) {
+    if (!arguments.length) return a11y_.FontFamily;
+    a11y_.FontFamily = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.FontSize = function (val) {
+    if (!arguments.length) return a11y_.FontSize;
+    a11y_.FontSize = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.OnClick = function (val) {
+    if (!arguments.length) return a11y_.OnClick;
+    a11y_.OnClick = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.OnHover = function (val) {
+    if (!arguments.length) return a11y_.OnHover;
+    a11y_.OnHover = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
   chart.SvgID = function (val) {
     if (!arguments.length) return svg_id;
     svg_id = val;
@@ -1959,7 +2262,11 @@ function LineTimeChartSimple() {
     updateDomainTime,
     updateDomainLinear;
   //
-  var a11y_ = { title: "", description: "" };
+  var a11y_ = {
+    title: "", description: "", frame: true, Theme: "light", ShowTitle: false, Subtitle: "", Caption: "",
+    TitleAlign: "left", Background: null, FontFamily: null, FontSize: null, Tooltip: "none",
+    OnClick: null, OnHover: null, HoverHighlight: false, MarkOpacity: null, Focusable: false,
+  };
   var redraw_ = makeRedraw(chart);
   function chart(selection) {
     redraw_.mount(selection);
@@ -2055,6 +2362,76 @@ function LineTimeChartSimple() {
   chart.Description = function (val) {
     if (!arguments.length) return a11y_.description;
     a11y_.description = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Theme = function (val) {
+    if (!arguments.length) return a11y_.Theme;
+    a11y_.Theme = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.ShowTitle = function (val) {
+    if (!arguments.length) return a11y_.ShowTitle;
+    a11y_.ShowTitle = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Subtitle = function (val) {
+    if (!arguments.length) return a11y_.Subtitle;
+    a11y_.Subtitle = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Caption = function (val) {
+    if (!arguments.length) return a11y_.Caption;
+    a11y_.Caption = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.TitleAlign = function (val) {
+    if (!arguments.length) return a11y_.TitleAlign;
+    a11y_.TitleAlign = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Background = function (val) {
+    if (!arguments.length) return a11y_.Background;
+    a11y_.Background = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.FontFamily = function (val) {
+    if (!arguments.length) return a11y_.FontFamily;
+    a11y_.FontFamily = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.FontSize = function (val) {
+    if (!arguments.length) return a11y_.FontSize;
+    a11y_.FontSize = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.OnClick = function (val) {
+    if (!arguments.length) return a11y_.OnClick;
+    a11y_.OnClick = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.OnHover = function (val) {
+    if (!arguments.length) return a11y_.OnHover;
+    a11y_.OnHover = val;
     redraw_.schedule();
     return chart;
   };
@@ -2224,7 +2601,11 @@ function MultiLineTimeChartSimple() {
     updateColour,
     updateDateOptions;
   //
-  var a11y_ = { title: "", description: "" };
+  var a11y_ = {
+    title: "", description: "", frame: true, Theme: "light", ShowTitle: false, Subtitle: "", Caption: "",
+    TitleAlign: "left", Background: null, FontFamily: null, FontSize: null, Tooltip: "none",
+    OnClick: null, OnHover: null, HoverHighlight: false, MarkOpacity: null, Focusable: false,
+  };
   var redraw_ = makeRedraw(chart);
   function chart(selection) {
     redraw_.mount(selection);
@@ -2455,6 +2836,76 @@ function MultiLineTimeChartSimple() {
     return chart;
   };
   //
+  chart.Theme = function (val) {
+    if (!arguments.length) return a11y_.Theme;
+    a11y_.Theme = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.ShowTitle = function (val) {
+    if (!arguments.length) return a11y_.ShowTitle;
+    a11y_.ShowTitle = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Subtitle = function (val) {
+    if (!arguments.length) return a11y_.Subtitle;
+    a11y_.Subtitle = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Caption = function (val) {
+    if (!arguments.length) return a11y_.Caption;
+    a11y_.Caption = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.TitleAlign = function (val) {
+    if (!arguments.length) return a11y_.TitleAlign;
+    a11y_.TitleAlign = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Background = function (val) {
+    if (!arguments.length) return a11y_.Background;
+    a11y_.Background = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.FontFamily = function (val) {
+    if (!arguments.length) return a11y_.FontFamily;
+    a11y_.FontFamily = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.FontSize = function (val) {
+    if (!arguments.length) return a11y_.FontSize;
+    a11y_.FontSize = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.OnClick = function (val) {
+    if (!arguments.length) return a11y_.OnClick;
+    a11y_.OnClick = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.OnHover = function (val) {
+    if (!arguments.length) return a11y_.OnHover;
+    a11y_.OnHover = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
   chart.SvgID = function (val) {
     if (!arguments.length) return svg_id;
     svg_id = val;
@@ -2646,7 +3097,11 @@ function SingleHorzBarChart() {
     updateWithText;
   //
   //
-  var a11y_ = { title: "", description: "" };
+  var a11y_ = {
+    title: "", description: "", frame: true, Theme: "light", ShowTitle: false, Subtitle: "", Caption: "",
+    TitleAlign: "left", Background: null, FontFamily: null, FontSize: null, Tooltip: "none",
+    OnClick: null, OnHover: null, HoverHighlight: false, MarkOpacity: null, Focusable: false,
+  };
   var redraw_ = makeRedraw(chart);
   function chart(selection) {
     redraw_.mount(selection);
@@ -2821,6 +3276,76 @@ function SingleHorzBarChart() {
     return chart;
   };
   //
+  chart.Theme = function (val) {
+    if (!arguments.length) return a11y_.Theme;
+    a11y_.Theme = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.ShowTitle = function (val) {
+    if (!arguments.length) return a11y_.ShowTitle;
+    a11y_.ShowTitle = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Subtitle = function (val) {
+    if (!arguments.length) return a11y_.Subtitle;
+    a11y_.Subtitle = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Caption = function (val) {
+    if (!arguments.length) return a11y_.Caption;
+    a11y_.Caption = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.TitleAlign = function (val) {
+    if (!arguments.length) return a11y_.TitleAlign;
+    a11y_.TitleAlign = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Background = function (val) {
+    if (!arguments.length) return a11y_.Background;
+    a11y_.Background = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.FontFamily = function (val) {
+    if (!arguments.length) return a11y_.FontFamily;
+    a11y_.FontFamily = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.FontSize = function (val) {
+    if (!arguments.length) return a11y_.FontSize;
+    a11y_.FontSize = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.OnClick = function (val) {
+    if (!arguments.length) return a11y_.OnClick;
+    a11y_.OnClick = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.OnHover = function (val) {
+    if (!arguments.length) return a11y_.OnHover;
+    a11y_.OnHover = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
   chart.SvgID = function (val) {
     if (!arguments.length) return svg_id;
     svg_id = val;
@@ -2991,7 +3516,11 @@ function LineAndBarChartSimple() {
     updateMarginBottom,
     updateThresholdBin;
   //
-  var a11y_ = { title: "", description: "" };
+  var a11y_ = {
+    title: "", description: "", frame: true, Theme: "light", ShowTitle: false, Subtitle: "", Caption: "",
+    TitleAlign: "left", Background: null, FontFamily: null, FontSize: null, Tooltip: "none",
+    OnClick: null, OnHover: null, HoverHighlight: false, MarkOpacity: null, Focusable: false,
+  };
   var redraw_ = makeRedraw(chart);
   function chart(selection) {
     redraw_.mount(selection);
@@ -3160,6 +3689,76 @@ function LineAndBarChartSimple() {
     return chart;
   };
   //
+  chart.Theme = function (val) {
+    if (!arguments.length) return a11y_.Theme;
+    a11y_.Theme = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.ShowTitle = function (val) {
+    if (!arguments.length) return a11y_.ShowTitle;
+    a11y_.ShowTitle = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Subtitle = function (val) {
+    if (!arguments.length) return a11y_.Subtitle;
+    a11y_.Subtitle = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Caption = function (val) {
+    if (!arguments.length) return a11y_.Caption;
+    a11y_.Caption = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.TitleAlign = function (val) {
+    if (!arguments.length) return a11y_.TitleAlign;
+    a11y_.TitleAlign = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Background = function (val) {
+    if (!arguments.length) return a11y_.Background;
+    a11y_.Background = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.FontFamily = function (val) {
+    if (!arguments.length) return a11y_.FontFamily;
+    a11y_.FontFamily = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.FontSize = function (val) {
+    if (!arguments.length) return a11y_.FontSize;
+    a11y_.FontSize = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.OnClick = function (val) {
+    if (!arguments.length) return a11y_.OnClick;
+    a11y_.OnClick = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.OnHover = function (val) {
+    if (!arguments.length) return a11y_.OnHover;
+    a11y_.OnHover = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
   chart.SvgID = function (val) {
     if (!arguments.length) return svg_id;
     svg_id = val;
@@ -3319,7 +3918,11 @@ function HeatMapBlockedSimple() {
     return data_accessor(data);
   }
   //
-  var a11y_ = { title: "", description: "" };
+  var a11y_ = {
+    title: "", description: "", frame: true, Theme: "light", ShowTitle: false, Subtitle: "", Caption: "",
+    TitleAlign: "left", Background: null, FontFamily: null, FontSize: null, Tooltip: "none",
+    OnClick: null, OnHover: null, HoverHighlight: false, MarkOpacity: null, Focusable: false,
+  };
   var redraw_ = makeRedraw(chart);
   function chart(selection) {
     redraw_.mount(selection);
@@ -3501,6 +4104,76 @@ function HeatMapBlockedSimple() {
   chart.Description = function (val) {
     if (!arguments.length) return a11y_.description;
     a11y_.description = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Theme = function (val) {
+    if (!arguments.length) return a11y_.Theme;
+    a11y_.Theme = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.ShowTitle = function (val) {
+    if (!arguments.length) return a11y_.ShowTitle;
+    a11y_.ShowTitle = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Subtitle = function (val) {
+    if (!arguments.length) return a11y_.Subtitle;
+    a11y_.Subtitle = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Caption = function (val) {
+    if (!arguments.length) return a11y_.Caption;
+    a11y_.Caption = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.TitleAlign = function (val) {
+    if (!arguments.length) return a11y_.TitleAlign;
+    a11y_.TitleAlign = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Background = function (val) {
+    if (!arguments.length) return a11y_.Background;
+    a11y_.Background = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.FontFamily = function (val) {
+    if (!arguments.length) return a11y_.FontFamily;
+    a11y_.FontFamily = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.FontSize = function (val) {
+    if (!arguments.length) return a11y_.FontSize;
+    a11y_.FontSize = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.OnClick = function (val) {
+    if (!arguments.length) return a11y_.OnClick;
+    a11y_.OnClick = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.OnHover = function (val) {
+    if (!arguments.length) return a11y_.OnHover;
+    a11y_.OnHover = val;
     redraw_.schedule();
     return chart;
   };
@@ -3698,7 +4371,11 @@ function CircularHeatChartSimple() {
     };
   //
   // Each datum is one arc. Ring = floor(i / numSegments), segment = i % numSegments.
-  var a11y_ = { title: "", description: "" };
+  var a11y_ = {
+    title: "", description: "", frame: true, Theme: "light", ShowTitle: false, Subtitle: "", Caption: "",
+    TitleAlign: "left", Background: null, FontFamily: null, FontSize: null, Tooltip: "none",
+    OnClick: null, OnHover: null, HoverHighlight: false, MarkOpacity: null, Focusable: false,
+  };
   var redraw_ = makeRedraw(chart);
   function chart(selection) {
     redraw_.mount(selection);
@@ -3768,6 +4445,16 @@ function CircularHeatChartSimple() {
   chart.SvgID = accessor(() => svg_id, (v) => (svg_id = v));
   chart.Title = accessor(() => a11y_.title, (v) => (a11y_.title = v));
   chart.Description = accessor(() => a11y_.description, (v) => (a11y_.description = v));
+  chart.Theme = accessor(() => a11y_.Theme, (v) => (a11y_.Theme = v));
+  chart.ShowTitle = accessor(() => a11y_.ShowTitle, (v) => (a11y_.ShowTitle = v));
+  chart.Subtitle = accessor(() => a11y_.Subtitle, (v) => (a11y_.Subtitle = v));
+  chart.Caption = accessor(() => a11y_.Caption, (v) => (a11y_.Caption = v));
+  chart.TitleAlign = accessor(() => a11y_.TitleAlign, (v) => (a11y_.TitleAlign = v));
+  chart.Background = accessor(() => a11y_.Background, (v) => (a11y_.Background = v));
+  chart.FontFamily = accessor(() => a11y_.FontFamily, (v) => (a11y_.FontFamily = v));
+  chart.FontSize = accessor(() => a11y_.FontSize, (v) => (a11y_.FontSize = v));
+  chart.OnClick = accessor(() => a11y_.OnClick, (v) => (a11y_.OnClick = v));
+  chart.OnHover = accessor(() => a11y_.OnHover, (v) => (a11y_.OnHover = v));
   chart.InnerRadius = accessor(() => innerRadius, (v) => (innerRadius = v));
   chart.NumSegments = accessor(() => numSegments, (v) => (numSegments = v));
   chart.SegmentHeight = accessor(() => segmentHeight, (v) => (segmentHeight = v));
