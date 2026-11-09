@@ -2,3 +2,4 @@ node_modules
 js/main.js
 js/main.js.map
 .enola
+.playwright-mcp

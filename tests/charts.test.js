@@ -110,3 +110,33 @@ test("setters before first render do not draw anything", async () => {
   assert.equal(document.querySelectorAll("#never-mounted").length, 0);
   assert.equal(chart.InnerRadius(), 10);
 });
+
+test("Title and Description make the svg accessible", () => {
+  const el = makeContainer("a11y");
+  const chart = lib.CircularHeatChartSimple().SvgID("acc").Width(600).Height(300)
+    .Title("Hourly load").Description("Load by hour over two days").Data(d3.range(48));
+  d3.select(el).call(chart);
+  const svg = el.querySelector("svg");
+  assert.equal(svg.getAttribute("role"), "img");
+  assert.equal(svg.getAttribute("aria-labelledby"), "acc-title acc-desc");
+  assert.equal(svg.querySelector("title").textContent, "Hourly load");
+  assert.equal(svg.querySelector("desc").textContent, "Load by hour over two days");
+});
+
+test("charts without Title add no aria attributes", () => {
+  const el = makeContainer("no-a11y");
+  d3.select(el).call(lib.CircularHeatChartSimple().SvgID("plain").Width(600).Height(300).Data(d3.range(5)));
+  assert.equal(el.querySelector("svg").getAttribute("role"), null);
+});
+
+test("DonutChartSimple.Data updates the slices of a drawn chart", async () => {
+  const el = makeContainer("donut-update");
+  const chart = configs.DonutChartSimple(lib.DonutChartSimple().SvgID("d"));
+  d3.select(el).call(chart);
+  const before = el.querySelectorAll("path").length;
+  chart.Data(dataset.slice(0, 1));
+  await tick();
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(el.querySelectorAll("svg").length, 1);
+  assert.ok(el.querySelectorAll("path").length <= before);
+});

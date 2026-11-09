@@ -37,7 +37,7 @@ function responsivefy(svg) {
 // Every SVG a chart draws is recorded per container so a redraw can remove it.
 const createdSvgs = new WeakMap();
 // TODO objects parameters for more configurability
-function getBaseSVG(_selection, _svg_id, _dimensions, _responsivefy) {
+function getBaseSVG(_selection, _svg_id, _dimensions, _responsivefy, _a11y) {
   const svg = d3
     .select(_selection)
     .append("svg")
@@ -46,6 +46,21 @@ function getBaseSVG(_selection, _svg_id, _dimensions, _responsivefy) {
     .call(_responsivefy);
   if (!createdSvgs.has(_selection)) createdSvgs.set(_selection, []);
   createdSvgs.get(_selection).push(svg.node());
+  // Accessible name and description (WAI-ARIA graphics pattern: role=img + title/desc).
+  if (_a11y && (_a11y.title || _a11y.description)) {
+    const prefix = (_svg_id || "d3eazy") + "-";
+    const ids = [];
+    svg.attr("role", "img");
+    if (_a11y.title) {
+      svg.insert("title", ":first-child").attr("id", prefix + "title").text(_a11y.title);
+      ids.push(prefix + "title");
+    }
+    if (_a11y.description) {
+      svg.append("desc").attr("id", prefix + "desc").text(_a11y.description);
+      ids.push(prefix + "desc");
+    }
+    svg.attr("aria-labelledby", ids.join(" "));
+  }
   return svg;
 }
 //
@@ -206,6 +221,7 @@ function BarChartSimple() {
   //
 
   // BarChartSimple
+  var a11y_ = { title: "", description: "" };
   var redraw_ = makeRedraw(chart);
   function chart(selection) {
     redraw_.mount(selection);
@@ -225,7 +241,7 @@ function BarChartSimple() {
       //
       var chartColour = colour.domain(colourDomain).range(colourRange);
       //
-      var svg = getBaseSVG(this, svg_id, dims, responsivefy);
+      var svg = getBaseSVG(this, svg_id, dims, responsivefy, a11y_);
       svg
         .append("g")
         .attr("width", svg.attr("width"))
@@ -551,6 +567,20 @@ function BarChartSimple() {
     return chart;
   };
   //
+  chart.Title = function (val) {
+    if (!arguments.length) return a11y_.title;
+    a11y_.title = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Description = function (val) {
+    if (!arguments.length) return a11y_.description;
+    a11y_.description = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
   chart.SvgID = function (val) {
     if (!arguments.length) return svg_id;
     svg_id = val;
@@ -823,6 +853,7 @@ function GroupedBarChartSimple() {
     updateTextDeltaX;
   //
   // GroupedBarChartSimple
+  var a11y_ = { title: "", description: "" };
   var redraw_ = makeRedraw(chart);
   function chart(selection) {
     redraw_.mount(selection);
@@ -834,7 +865,7 @@ function GroupedBarChartSimple() {
       //
       var chartColour = colour.domain(colourDomain).range(colourRange);
       //
-      var svg = getBaseSVG(this, svg_id, dims, responsivefy);
+      var svg = getBaseSVG(this, svg_id, dims, responsivefy, a11y_);
       svg
         .append("g")
         .attr("width", svg.attr("width"))
@@ -968,6 +999,20 @@ function GroupedBarChartSimple() {
     orient = val;
     if (typeof updateOrient === "function") updateOrient();
     else redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Title = function (val) {
+    if (!arguments.length) return a11y_.title;
+    a11y_.title = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Description = function (val) {
+    if (!arguments.length) return a11y_.description;
+    a11y_.description = val;
+    redraw_.schedule();
     return chart;
   };
   //
@@ -1167,6 +1212,7 @@ function DonutChartSimple() {
       });
   };
   //
+  var a11y_ = { title: "", description: "" };
   var redraw_ = makeRedraw(chart);
   function chart(selection) {
     redraw_.mount(selection);
@@ -1184,7 +1230,7 @@ function DonutChartSimple() {
           outerRadiusArcShadow = innerRadiusArc + 1,
           innerRadiusArcShadow = innerRadiusArc - shadowWidth;
       //
-      svg = getBaseSVG(this, svg_id, dims, responsivefy);
+      svg = getBaseSVG(this, svg_id, dims, responsivefy, a11y_);
       svg
         .append("g")
         .attr("width", svg.attr("width"))
@@ -1337,6 +1383,20 @@ function DonutChartSimple() {
       //
     });
   }
+  //
+  chart.Title = function (val) {
+    if (!arguments.length) return a11y_.title;
+    a11y_.title = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Description = function (val) {
+    if (!arguments.length) return a11y_.description;
+    a11y_.description = val;
+    redraw_.schedule();
+    return chart;
+  };
   //
   chart.SvgID = function (val) {
     if (!arguments.length) return svg_id;
@@ -1508,6 +1568,7 @@ function LineLinearSpark() {
   var updateData;
   //
   //
+  var a11y_ = { title: "", description: "" };
   var redraw_ = makeRedraw(chart);
   function chart(selection) {
     redraw_.mount(selection);
@@ -1517,7 +1578,7 @@ function LineLinearSpark() {
       var boundedWidth = dims.width - dims.marginRight - dims.marginLeft,
           boundedHeight = dims.height - dims.marginTop - dims.marginBottom;
       //
-      var svg = getBaseSVG(this, svg_id, dims, responsivefy);
+      var svg = getBaseSVG(this, svg_id, dims, responsivefy, a11y_);
       svg
         .append("g")
         .attr("width", svg.attr("width"))
@@ -1762,6 +1823,20 @@ function LineLinearSpark() {
     return chart;
   };
   //
+  chart.Title = function (val) {
+    if (!arguments.length) return a11y_.title;
+    a11y_.title = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Description = function (val) {
+    if (!arguments.length) return a11y_.description;
+    a11y_.description = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
   chart.SvgID = function (val) {
     if (!arguments.length) return svg_id;
     svg_id = val;
@@ -1943,6 +2018,7 @@ function LineTimeChartSimple() {
     updateDomainTime,
     updateDomainLinear;
   //
+  var a11y_ = { title: "", description: "" };
   var redraw_ = makeRedraw(chart);
   function chart(selection) {
     redraw_.mount(selection);
@@ -1963,7 +2039,7 @@ function LineTimeChartSimple() {
         .domain(linear_domain)
         .range([boundedHeight, 0]);
       //
-      var root = getBaseSVG(this, svg_id, dims, responsivefy);
+      var root = getBaseSVG(this, svg_id, dims, responsivefy, a11y_);
       var svg = root
         .append("g")
         .attr("transform", `translate(${dims.marginLeft},${dims.marginTop})`);
@@ -2027,6 +2103,20 @@ function LineTimeChartSimple() {
     });
   }
   //
+  //
+  chart.Title = function (val) {
+    if (!arguments.length) return a11y_.title;
+    a11y_.title = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Description = function (val) {
+    if (!arguments.length) return a11y_.description;
+    a11y_.description = val;
+    redraw_.schedule();
+    return chart;
+  };
   //
   chart.SvgID = function (val) {
     if (!arguments.length) return svg_id;
@@ -2193,6 +2283,7 @@ function MultiLineTimeChartSimple() {
     updateColour,
     updateDateOptions;
   //
+  var a11y_ = { title: "", description: "" };
   var redraw_ = makeRedraw(chart);
   function chart(selection) {
     redraw_.mount(selection);
@@ -2203,7 +2294,10 @@ function MultiLineTimeChartSimple() {
       //
       var chartColour = colour.domain(colourDomain).range(colourRange);
       //
-      var svg = getBaseSVG(this, svg_id, dims, responsivefy);
+      var root = getBaseSVG(this, svg_id, dims, responsivefy, a11y_);
+      var svg = root
+        .append("g")
+        .attr("transform", `translate(${dims.marginLeft},${dims.marginTop})`);
       //
       const val_linear = d3
         .scaleLinear()
@@ -2272,7 +2366,7 @@ function MultiLineTimeChartSimple() {
           d3
             .line()
             .x(function (d) {
-              return val_time(time(d));
+              return val_time(d.date);
             })
             .y(function (d) {
               return val_linear(d.value);
@@ -2405,6 +2499,20 @@ function MultiLineTimeChartSimple() {
       }
     });
   }
+  //
+  chart.Title = function (val) {
+    if (!arguments.length) return a11y_.title;
+    a11y_.title = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Description = function (val) {
+    if (!arguments.length) return a11y_.description;
+    a11y_.description = val;
+    redraw_.schedule();
+    return chart;
+  };
   //
   chart.SvgID = function (val) {
     if (!arguments.length) return svg_id;
@@ -2597,6 +2705,7 @@ function SingleHorzBarChart() {
     updateWithText;
   //
   //
+  var a11y_ = { title: "", description: "" };
   var redraw_ = makeRedraw(chart);
   function chart(selection) {
     redraw_.mount(selection);
@@ -2610,7 +2719,7 @@ function SingleHorzBarChart() {
       //
       var chartColour = colour.domain(colourDomain).range(colourRange);
       //
-      var svg = getBaseSVG(this, svg_id, dims, responsivefy);
+      var svg = getBaseSVG(this, svg_id, dims, responsivefy, a11y_);
       //
       // Single band horizontally
       var yScale = d3.scaleBand().domain([""]);
@@ -2756,6 +2865,20 @@ function SingleHorzBarChart() {
       };
     });
   }
+  //
+  chart.Title = function (val) {
+    if (!arguments.length) return a11y_.title;
+    a11y_.title = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Description = function (val) {
+    if (!arguments.length) return a11y_.description;
+    a11y_.description = val;
+    redraw_.schedule();
+    return chart;
+  };
   //
   chart.SvgID = function (val) {
     if (!arguments.length) return svg_id;
@@ -2927,6 +3050,7 @@ function LineAndBarChartSimple() {
     updateMarginBottom,
     updateThresholdBin;
   //
+  var a11y_ = { title: "", description: "" };
   var redraw_ = makeRedraw(chart);
   function chart(selection) {
     redraw_.mount(selection);
@@ -2942,7 +3066,7 @@ function LineAndBarChartSimple() {
       //
       var chartColour = colour.domain(colourDomain).range(colourRange);
       //
-      svg = getBaseSVG(this, svg_id, dims, responsivefy);
+      svg = getBaseSVG(this, svg_id, dims, responsivefy, a11y_);
       //
       var x = d3.scaleLinear().range([0, boundedWidth]);
       x.domain(band_domain);
@@ -3080,6 +3204,20 @@ function LineAndBarChartSimple() {
       };
     });
   }
+  //
+  chart.Title = function (val) {
+    if (!arguments.length) return a11y_.title;
+    a11y_.title = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Description = function (val) {
+    if (!arguments.length) return a11y_.description;
+    a11y_.description = val;
+    redraw_.schedule();
+    return chart;
+  };
   //
   chart.SvgID = function (val) {
     if (!arguments.length) return svg_id;
@@ -3240,6 +3378,7 @@ function HeatMapBlockedSimple() {
     return data_accessor(data);
   }
   //
+  var a11y_ = { title: "", description: "" };
   var redraw_ = makeRedraw(chart);
   function chart(selection) {
     redraw_.mount(selection);
@@ -3255,7 +3394,7 @@ function HeatMapBlockedSimple() {
         return;
       }
       //
-      var svg = getBaseSVG(this, svg_id, dims, responsivefy);
+      var svg = getBaseSVG(this, svg_id, dims, responsivefy, a11y_);
       //
       var thisData = getData();
       // Colour cells with ColourFnZ when set, else an ordinal scale built from ColourDomainZ/RangeZ.
@@ -3410,6 +3549,20 @@ function HeatMapBlockedSimple() {
     });
   }
   //
+  //
+  chart.Title = function (val) {
+    if (!arguments.length) return a11y_.title;
+    a11y_.title = val;
+    redraw_.schedule();
+    return chart;
+  };
+  //
+  chart.Description = function (val) {
+    if (!arguments.length) return a11y_.description;
+    a11y_.description = val;
+    redraw_.schedule();
+    return chart;
+  };
   //
   chart.SvgID = function (val) {
     if (!arguments.length) return svg_id;
@@ -3604,6 +3757,7 @@ function CircularHeatChartSimple() {
     };
   //
   // Each datum is one arc. Ring = floor(i / numSegments), segment = i % numSegments.
+  var a11y_ = { title: "", description: "" };
   var redraw_ = makeRedraw(chart);
   function chart(selection) {
     redraw_.mount(selection);
@@ -3621,7 +3775,7 @@ function CircularHeatChartSimple() {
           .startAngle((d, i) => (i % numSegments) * ((2 * Math.PI) / numSegments))
           .endAngle((d, i) => ((i % numSegments) + 1) * ((2 * Math.PI) / numSegments));
       //
-      var svg = getBaseSVG(this, svg_id, dims, responsivefy),
+      var svg = getBaseSVG(this, svg_id, dims, responsivefy, a11y_),
         g = svg
           .append("g")
           .attr(
@@ -3671,6 +3825,8 @@ function CircularHeatChartSimple() {
   chart.Data = accessor(() => data, (v) => (data = v));
   chart.DataAccessor = accessor(() => dataAccessor, (v) => (dataAccessor = v));
   chart.SvgID = accessor(() => svg_id, (v) => (svg_id = v));
+  chart.Title = accessor(() => a11y_.title, (v) => (a11y_.title = v));
+  chart.Description = accessor(() => a11y_.description, (v) => (a11y_.description = v));
   chart.InnerRadius = accessor(() => innerRadius, (v) => (innerRadius = v));
   chart.NumSegments = accessor(() => numSegments, (v) => (numSegments = v));
   chart.SegmentHeight = accessor(() => segmentHeight, (v) => (segmentHeight = v));
@@ -3680,6 +3836,10 @@ function CircularHeatChartSimple() {
   chart.SegmentLabels = accessor(() => segmentLabels, (v) => (segmentLabels = v));
   chart.Width = accessor(() => width, (v) => (width = dims.width = v));
   chart.Height = accessor(() => height, (v) => (height = dims.height = v));
+  chart.MarginTop = accessor(() => dims.marginTop, (v) => (dims.marginTop = v));
+  chart.MarginRight = accessor(() => dims.marginRight, (v) => (dims.marginRight = v));
+  chart.MarginBottom = accessor(() => dims.marginBottom, (v) => (dims.marginBottom = v));
+  chart.MarginLeft = accessor(() => dims.marginLeft, (v) => (dims.marginLeft = v));
   return chart;
 }
 //
