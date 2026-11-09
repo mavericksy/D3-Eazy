@@ -11,3 +11,4 @@ export {
   CircularHeatChartSimple,
 } from "./charts.js";
 export { ready, addEventListener } from "./events.js";
+export * from "./charts-more.js";

@@ -13,6 +13,7 @@ import {
   CircularHeatChartSimple,
   ready,
 } from "../d3-eazy.js";
+import { moreExamples } from "./example-more.jsx";
 
 // Shared sample data.
 const languages = [
@@ -258,4 +259,4 @@ function renderExample(example, index) {
   details.append("pre").append("code").text(example.make.toString());
 }
 
-ready(() => examples.forEach(renderExample));
+ready(() => [...examples, ...moreExamples].forEach(renderExample));

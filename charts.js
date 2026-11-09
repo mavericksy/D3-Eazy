@@ -3844,6 +3844,9 @@ function CircularHeatChartSimple() {
 }
 //
 export {
+  getBaseSVG,
+  responsivefy,
+  makeRedraw,
   BarChartSimple,
   GroupedBarChartSimple,
   DonutChartSimple,

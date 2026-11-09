@@ -1,6 +1,6 @@
 # D3-Eazy
 
-![All the example charts](docs/imgs/examples.png)
+![All the example charts](docs/imgs/examples-all.png)
 
 > **Status: alpha.** The API can change. Pin the version you use.
 
@@ -92,32 +92,100 @@ Two charts on one page do not share data.
 
 ## Charts
 
-All charts have `SvgID`, `Title`, `Description`, `Data`, `Width`, `Height`, and `MarginTop/Right/Bottom/Left`,
-unless the table says otherwise. Read the example in `js/example.jsx` for a working setup of each.
+There are 38 charts. Every chart has `SvgID`, `Title`, `Description`, `Data`, `Width`, `Height`,
+`MarginTop/Right/Bottom/Left`, `ColourDomain`, and `ColourRange`, unless a row says otherwise.
+Each chart has a working card in the demo. The source is in `js/example.jsx` and `js/example-more.jsx`.
+
+Orientation follows `BarChartSimple`: `"horizontal"` puts the categories on the x axis.
+`"vertical"` puts them on the y axis.
+
+### Comparison
 
 | Chart | Use it for | Main setters |
 | --- | --- | --- |
-| `BarChartSimple` | Compare values per category | `Band`, `Val`, `DomainBand`, `DomainVal`, `Orient`, `ColourDomain`, `ColourRange`, `WithText`, `CornerRadiusX`, `BarPadding` |
-| `GroupedBarChartSimple` | Compare several fields per category | `Band` (array of categories), `Subgroup` (array of field names), `DomainVal`, `Orient`, `ColourDomain` |
-| `DonutChartSimple` | Show parts of a whole | `Key`, `Val`, `ValText`, `CenterText`, `InnerRadiusArc`, `OuterRadiusArc`, `ColourDomain` |
+| `BarChartSimple` | Compare values per category | `Band`, `Val`, `DomainBand`, `DomainVal`, `Orient`, `WithText`, `CornerRadiusX`, `BarPadding` |
+| `GroupedBarChartSimple` | Compare several fields per category | `Band` (array), `Subgroup` (array of fields), `DomainVal`, `Orient` |
+| `StackedBarChartSimple` | Parts of a total per category | `Band`, `Keys`, `Orient`, `Normalize` |
+| `LollipopChartSimple` | A lighter bar chart | `Band`, `Val`, `Orient`, `Radius` |
+| `DumbbellChartSimple` | Change between two values per category | `Band`, `From`, `To` |
+| `SlopeChartSimple` | Change of each item between two times | `Name`, `From`, `To`, `FromLabel`, `ToLabel` |
+| `WaterfallChartSimple` | A running total built from steps | `Name`, `Val`, `ShowTotal`, `Up`, `Down`, `Total` |
+| `RadarChartSimple` | Compare shapes over several axes | `Axes`, `Series`, `Value(row, axis)`, `Max`, `Levels` |
+| `ParallelCoordinatesSimple` | Compare rows over many numeric fields | `Dimensions`, `Value(row, dim)`, `Group` |
+| `HeatGridChartSimple` | Value per pair of categories | `X`, `Y`, `Value`, `Interpolator`, `ShowValues` |
+
+### Trends over time or a number axis
+
+| Chart | Use it for | Main setters |
+| --- | --- | --- |
+| `LineChartSimple` | One or more lines | `X`, `Y`, `Series`, `Curve`, `Points`, `DomainY` |
+| `AreaChartSimple` | Lines with a filled area | same as `LineChartSimple`, plus `Opacity` |
+| `StepLineChartSimple` | A value that holds until the next point | same as `LineChartSimple` |
+| `StackedAreaChartSimple` | Parts of a total over time | `X`, `Keys`, `Offset`, `Order`, `Curve` |
+| `StreamGraphSimple` | Stacked area on a wiggling baseline | same as `StackedAreaChartSimple` |
+| `CandlestickChartSimple` | Open, high, low, close prices | `Date`, `Open`, `High`, `Low`, `Close` |
+| `CalendarHeatmapSimple` | One square per day | `Date`, `Value`, `Interpolator` |
+| `LineTimeChartSimple` | One line over time | `Time`, `Linear`, `DomainTime`, `DomainLinear`, `StrokeColour` |
+| `MultiLineTimeChartSimple` | Several lines over time | `Time`, `LineKeys`, `DomainTime`, `DomainVal`, `WithLegend` |
 | `LineLinearSpark` | One line over a number axis | `LinearAccessor`, `ValAccessor`, `DomainLinear`, `DomainVal`, `Curve`, `WithHover` |
-| `LineTimeChartSimple` | One line over time | `Time`, `Linear`, `DomainTime`, `DomainLinear`, `StrokeColour`, `StrokeWidth` |
-| `MultiLineTimeChartSimple` | Several lines over time | `Time`, `LineKeys`, `DomainTime`, `DomainVal`, `ColourDomain`, `WithLegend` |
+
+### Distribution and relationship
+
+| Chart | Use it for | Main setters |
+| --- | --- | --- |
+| `HistogramSimple` | Shape of one numeric field | `Value`, `Thresholds`, `Domain` |
+| `BoxPlotSimple` | Median, quartiles, outliers per group | `Group`, `Value`, `Orient` |
+| `ScatterPlotSimple` | Two numeric fields. Bubble chart when `R` is a function | `X`, `Y`, `R`, `Group`, `Opacity` |
+
+### Part of a whole
+
+| Chart | Use it for | Main setters |
+| --- | --- | --- |
+| `PieChartSimple` | Shares. Donut when `InnerRadius` > 0 | `Key`, `Val`, `InnerRadius`, `Labels` |
+| `DonutChartSimple` | Shares, with a centre text | `Key`, `Val`, `ValText`, `CenterText`, `InnerRadiusArc`, `OuterRadiusArc` |
+| `FunnelChartSimple` | Drop-off between stages | `Stage`, `Val` |
+| `GaugeChartSimple` | One value against a range (no `Data`) | `Value`, `Min`, `Max`, `Thresholds`, `Label` |
+| `TreemapChartSimple` | Hierarchy by area | `Children`, `Value`, `Name` |
+| `SunburstChartSimple` | Hierarchy by rings | `Children`, `Value`, `Name` |
+| `CirclePackChartSimple` | Hierarchy by nested circles | `Children`, `Value`, `Name` |
+
+### Structure and flow
+
+| Chart | Use it for | Main setters |
+| --- | --- | --- |
+| `TreeDiagramSimple` | A hierarchy as a tree | `Children`, `Name`, `LabelSpace` |
+| `ForceNetworkSimple` | Nodes and links | `Group`, `NodeRadius`, `Charge`, `LinkDistance`, `Iterations` |
+| `SankeyDiagramSimple` | Flow between stages | `NodeWidth`, `NodePadding` |
+| `ChordDiagramSimple` | Flow between a few groups | `Names` |
+
+### Other
+
+| Chart | Use it for | Main setters |
+| --- | --- | --- |
 | `HeatMapBlockedSimple` | One block per record, coloured by `status` | `DateAccessor`, `DateExtent`, `ColourDomainZ`, `ColourRangeZ`, `DataAccessor`, `WithHover` |
 | `CircularHeatChartSimple` | Cyclic data, such as hours of the day | `NumSegments`, `InnerRadius`, `SegmentHeight`, `ColourRange`, `DataAccessor`, `RadialLabels`, `SegmentLabels` |
 | `SingleHorzBarChart` | One stacked bar | `DomainVal`, `ColourDomain`, `WithText`, `WithHover` |
 | `LineAndBarChartSimple` | Bars with a line over them | `BandDomain`, `ValDomain`, `ThresholdBin`, `StrokeColour` |
 
-Chart data shapes:
+### Data shapes
 
-- `BarChartSimple`, `DonutChartSimple`: an array of objects. Accessors pick the fields.
-- `GroupedBarChartSimple`: an array of objects. `Subgroup` names the fields to compare.
-- `LineLinearSpark`, `LineTimeChartSimple`: an array of objects. Accessors pick x and y.
-- `MultiLineTimeChartSimple`: an array like `[{ day: Date, north: 1, south: 2 }]`. `LineKeys(["north", "south"])` picks the lines.
-- `HeatMapBlockedSimple`: an array like `[{ date: Date, status: "pass" }]`. The cell colour comes from `status`.
-- `CircularHeatChartSimple`: an array of numbers (or objects with `DataAccessor`). Item `i` goes to ring `floor(i / NumSegments)`.
+- Most charts take an array of objects. Accessor setters (`X`, `Y`, `Band`, `Val`, `Key`, `Name`) pick the fields.
+  Setter defaults read `d.x`, `d.y`, `d.name`, and `d.value`, so data in that shape needs no accessors.
+- `StackedBarChartSimple`, `StackedAreaChartSimple`, `StreamGraphSimple`: rows like `{ name: "Q1", web: 3, mobile: 4 }`. `Keys(["web", "mobile"])` picks the fields to stack.
+- `LineChartSimple`, `AreaChartSimple`, `ScatterPlotSimple`: one flat array. `Series` or `Group` splits it into several lines or colours.
+- `Treemap`, `Sunburst`, `CirclePack`, `TreeDiagram`: one nested object like `{ name, children: [{ name, value }] }`.
+- `ForceNetworkSimple`: `{ nodes: [{ id, group }], links: [{ source, target }] }`.
+- `SankeyDiagramSimple`: `{ nodes: [{ name }], links: [{ source: "A", target: "B", value: 3 }] }`.
+- `ChordDiagramSimple`: a square matrix of numbers.
+- `MultiLineTimeChartSimple`: rows like `{ day: Date, north: 1, south: 2 }`. `LineKeys(["north", "south"])` picks the lines.
+- `HeatMapBlockedSimple`: rows like `{ date: Date, status: "pass" }`.
+- `CircularHeatChartSimple`: an array of numbers. Item `i` goes to ring `floor(i / NumSegments)`.
+- `SingleHorzBarChart`: the result of `d3.stack().keys([...])([row])`.
+- `LineAndBarChartSimple`: rows like `{ key: 4, value: 7 }`. `BandDomain([0, max])` is the numeric x range.
 
-`SingleHorzBarChart` and `LineAndBarChartSimple` have the least testing. Treat them as unstable.
+Each drawn mark also has a `<title>`, so the browser shows a tooltip on hover.
+The charts from `LineChartSimple` onward draw every mark with the class `mark`.
+Use it to style or select marks, for example `svg.selectAll(".mark")`.
 
 ## Accessibility
 
@@ -145,21 +213,24 @@ Project layout:
 | Path | Content |
 | --- | --- |
 | `d3-eazy.js` | Public entry point. Exports every chart. |
-| `charts.js` | The chart implementations. |
+| `charts.js` | The first ten charts and the shared helpers. |
+| `charts-more.js` | The other charts, built with one `makeChart` factory. |
 | `events.js` | Small DOM event helpers (`ready`, `addEventListener`). |
-| `js/example.jsx` | Source of the demo page. |
+| `js/example.jsx`, `js/example-more.jsx` | Source of the demo page. |
 | `tests/` | Tests and the jsdom helper. |
 
-When you add a chart, follow the pattern in `charts.js`: keep all state inside the chart function,
-add a getter/setter for each option, call `redraw_.mount(selection)` at the start of the draw function,
-and add a test configuration in `tests/charts.test.js`.
-The test file fails if an exported chart has no configuration.
+To add a chart, write a render function in `charts-more.js` and export `() => makeChart(defaults, render)`.
+Every key in `defaults` becomes a getter/setter. Then add a configuration and the expected number
+of `.mark` elements to `tests/more-fixtures.js`. The tests fail if an exported chart has no configuration,
+if a chart writes `NaN` or `undefined` into an attribute, or if the mark count is wrong.
 
 ## Known limits
 
 - Charts are not tested in a real browser by the test suite. The suite uses jsdom, which has no layout engine.
   Check the demo page after a change.
 - Most charts redraw instead of animating when you change a setter.
+- `SingleHorzBarChart` and `LineAndBarChartSimple` have the least testing. Treat them as unstable.
+- `ForceNetworkSimple` runs its layout once per draw, so it does not animate.
 - `HeatMapBlockedSimple` reads the `status` field of each record. Use `ColourFnZ` for a custom colour function.
 
 ## Credits

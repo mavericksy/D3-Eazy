@@ -3,6 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as d3 from "d3";
 import * as lib from "../d3-eazy.js";
+import { moreConfigs } from "./more-fixtures.js";
 
 const dataset = [
   { name: "JS", value: 52, nice: 46 },
@@ -35,19 +36,33 @@ const configs = {
       .DomainTime(d3.extent(days, (d) => d.t)).DomainVal([0, 40])
       .Data(days.map((d) => ({ t: d.t, a: d.v, b: d.v * 2 }))),
   SingleHorzBarChart: (c) =>
-    c.Width(600).Height(60).ColourDomain(names).DomainVal([0, 535]).Data(dataset),
+    c.Width(600).Height(60).ColourDomain(["a", "b"]).DomainVal([0, 7])
+      .Data(d3.stack().keys(["a", "b"])([{ a: 3, b: 4 }])),
   LineAndBarChartSimple: (c) =>
-    c.Width(600).Height(300).BandDomain(names).ValDomain([0, 301]).Data(dataset),
+    c.Width(600).Height(300).BandDomain([0, 10]).ValDomain([0, 10]).ThresholdBin(1)
+      .Data([{ key: 1, value: 3 }, { key: 4, value: 7 }, { key: 8, value: 5 }]),
   HeatMapBlockedSimple: (c) =>
     c.Width(600).Height(300).ColourDomainZ(["ok", "bad"]).DateAccessor((d) => d.t)
       .Data(days.map((d, i) => ({ t: d.t, status: i % 2 ? "ok" : "bad" }))),
   CircularHeatChartSimple: (c) => c.Width(600).Height(300).Data(d3.range(48)),
 };
 
+// The extra charts share one factory. Add them to the generic render and setter tests.
+for (const [name, [configure]] of Object.entries(moreConfigs)) configs[name] = configure;
+
 test("every exported chart has a test configuration", () => {
   const charts = Object.keys(lib).filter((k) => /^[A-Z]/.test(k));
   assert.deepEqual(charts.sort(), Object.keys(configs).sort());
 });
+
+for (const [name, [configure, marks]] of Object.entries(moreConfigs)) {
+  test(`${name} draws ${marks} marks`, () => {
+    const el = makeContainer(`marks-${name}`);
+    d3.select(el).call(configure(lib[name]().SvgID(`m-${name}`).Width(600).Height(400)));
+    assert.equal(el.querySelectorAll(".mark").length, marks);
+    assert.equal(el.querySelector("svg").getAttribute("viewBox"), "0 0 600 400");
+  });
+}
 
 for (const [name, configure] of Object.entries(configs)) {
   test(`${name} renders one svg with the given id`, () => {
@@ -58,6 +73,16 @@ for (const [name, configure] of Object.entries(configs)) {
     assert.equal(svgs.length, 1);
     assert.equal(svgs[0].id, `svg-${name}`);
     assert.ok(svgs[0].querySelectorAll("*").length > 1, "svg has content");
+  });
+
+  test(`${name} writes no NaN or undefined into SVG attributes`, () => {
+    const el = makeContainer(`nan-${name}`);
+    d3.select(el).call(configure(lib[name]().SvgID(`n-${name}`)));
+    for (const node of el.querySelectorAll("svg *")) {
+      for (const attr of node.attributes) {
+        assert.ok(!/NaN|undefined|Infinity/.test(attr.value), `${node.tagName} ${attr.name}="${attr.value.slice(0, 60)}"`);
+      }
+    }
   });
 
   test(`${name} setters chain and getters return the stored value`, () => {
@@ -139,4 +164,14 @@ test("DonutChartSimple.Data updates the slices of a drawn chart", async () => {
   await new Promise((r) => setTimeout(r, 50));
   assert.equal(el.querySelectorAll("svg").length, 1);
   assert.ok(el.querySelectorAll("path").length <= before);
+});
+
+test("ForceNetworkSimple keeps nodes inside the plot area", () => {
+  const el = makeContainer("force-bounds");
+  const nodes = d3.range(30).map((i) => ({ id: `n${i}`, group: i % 3 }));
+  d3.select(el).call(lib.ForceNetworkSimple().Width(400).Height(300).MarginLeft(0).MarginRight(0).MarginTop(0).MarginBottom(0).Data({ nodes, links: [] }));
+  for (const c of el.querySelectorAll("circle.mark")) {
+    assert.ok(+c.getAttribute("cx") >= 0 && +c.getAttribute("cx") <= 400);
+    assert.ok(+c.getAttribute("cy") >= 0 && +c.getAttribute("cy") <= 300);
+  }
 });
