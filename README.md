@@ -75,10 +75,8 @@ bars.Orient(); // "vertical"
 d3.select("#bars").call(bars);
 ```
 
-**Update.** After the first draw, change any setter. The chart updates itself.
-`BarChartSimple.Data()` and `DonutChartSimple.Data()` animate to the new data.
-For every other setter and chart, the chart removes its `<svg>` and draws it again.
-Several setter calls in a row cause one redraw.
+**Update.** After the first draw, change any setter. The chart removes its `<svg>` and draws it again.
+Several setter calls in a row cause one redraw. Only the first draw of a chart animates.
 
 ```javascript
 bars.Data(newRows).Orient("vertical"); // one update
@@ -162,7 +160,7 @@ Orientation follows `BarChartSimple`: `"horizontal"` puts the categories on the 
 
 | Chart | Use it for | Main setters |
 | --- | --- | --- |
-| `HeatMapBlockedSimple` | One block per record, coloured by `status` | `DateAccessor`, `DateExtent`, `ColourDomainZ`, `ColourRangeZ`, `DataAccessor`, `WithHover` |
+| `HeatMapBlockedSimple` | One block per record, coloured by `status` | `DateAccessor`, `StatusAccessor`, `DateExtent`, `ColourDomainZ`, `ColourRangeZ`, `DataAccessor`, `WithHover`, `OnHover` |
 | `CircularHeatChartSimple` | Cyclic data, such as hours of the day | `NumSegments`, `InnerRadius`, `SegmentHeight`, `ColourRange`, `DataAccessor`, `RadialLabels`, `SegmentLabels` |
 | `SingleHorzBarChart` | One stacked bar | `DomainVal`, `ColourDomain`, `WithText`, `WithHover` |
 | `LineAndBarChartSimple` | Bars with a line over them | `BandDomain`, `ValDomain`, `ThresholdBin`, `StrokeColour` |
@@ -188,28 +186,28 @@ The label sits inside a long bar and just past the end of a short bar.
 `BarLength(percent)` sets the cut-off (default 50). `TextFill([outside, inside])` and `TextAnchor([outside, inside])`
 override the automatic colours and alignment. `TextFormat(fn)` formats the number.
 
-Each drawn mark also has a `<title>`, so the browser shows a tooltip on hover.
-The charts from `LineChartSimple` onward draw every mark with the class `mark`.
+Hover any mark to see a tooltip (see `Tooltip` below).
+Every chart draws its marks with the class `mark`.
 Use it to style or select marks, for example `svg.selectAll(".mark")`.
 
 ## Options on every chart
 
-All 28 charts from `LineChartSimple` onward share these setters. Each one returns the chart, so calls chain.
-After the first draw, a change redraws the chart. The older ten charts support the rows marked "older charts".
+All 38 charts share these setters, because every chart is built by the same factory.
+Each setter returns the chart, so calls chain. After the first draw, a change redraws the chart.
 
 ### Look and feel
 
 | Setter | Default | What it does |
 | --- | --- | --- |
-| `Theme(name \| object)` | `"light"` | `"light"`, `"dark"`, `"minimal"`, `"highContrast"`, `"colourBlind"`, `"auto"` (follows the operating system), or an object like `{ extends: "dark", background: "#012" }`. Older charts: yes. |
+| `Theme(name \| object)` | `"light"` | `"light"`, `"dark"`, `"minimal"`, `"highContrast"`, `"colourBlind"`, `"auto"` (follows the operating system), or an object like `{ extends: "dark", background: "#012" }`. |
 | `Palette(name)` | theme palette | A named colour list. See `palettes` below. |
 | `ColourRange(list)` | from palette | An explicit colour list. It beats `Palette`. |
 | `ColourDomain(keys)` | from data | Fixes which key gets which colour. |
 | `ColourOverrides({ key: colour })` | `{}` | Colour single keys. |
-| `Background(colour)` | theme | Fill behind the chart. Older charts: yes. |
-| `FontFamily(css)`, `FontSize(px)` | theme | Text style for the whole chart. Older charts: yes. |
-| `ShowTitle(true)` | `false` | Draw `Title` as a visible heading. Without it, `Title` is only the accessible name. Older charts: yes. |
-| `Subtitle(text)`, `Caption(text)`, `TitleAlign("left" \| "middle" \| "right")` | empty | Text above and below the plot. The chart adds room for them. Older charts: yes, but set `MarginTop` yourself. |
+| `Background(colour)` | theme | Fill behind the chart. |
+| `FontFamily(css)`, `FontSize(px)` | theme | Text style for the whole chart. |
+| `ShowTitle(true)` | `false` | Draw `Title` as a visible heading. Without it, `Title` is only the accessible name. |
+| `Subtitle(text)`, `Caption(text)`, `TitleAlign("left" \| "middle" \| "right")` | empty | Text above and below the plot. The chart adds room for them. |
 | `MarkStroke`, `MarkStrokeWidth`, `MarkOpacity`, `MarkCornerRadius` | unset | Style every mark (the `.mark` elements) at once. |
 
 Built-in theme names are in the `themes` export. Add one with `registerTheme("brand", { background: "#fff8f0", text: "#222", palette: [...] })`.
@@ -247,8 +245,8 @@ Add one with `registerPalette(name, colours)`. The heat charts take `Interpolato
 | --- | --- | --- |
 | `Tooltip("custom" \| "native" \| "none")` | `"custom"` | `"custom"` shows a styled box that follows the pointer and uses the theme colours. `"native"` uses the browser tooltip. |
 | `TooltipFormat((text, datum, node) => string)` | unset | Rewrite the tooltip text. With `TooltipHtml(true)` the result is HTML. Escape any untrusted data yourself. |
-| `OnClick((event, datum, node) => ...)` | unset | Runs when a mark is clicked. Older charts: yes. |
-| `OnHover((event, datum, node) => ...)` | unset | Runs when the pointer enters a mark. `datum` is `null` when it leaves. Older charts: yes. |
+| `OnClick((event, datum, node) => ...)` | unset | Runs when a mark is clicked. |
+| `OnHover((event, datum, node) => ...)` | unset | Runs when the pointer enters a mark. `datum` is `null` when it leaves. |
 | `HoverHighlight(true)` | `false` | Dim every mark except the one under the pointer. |
 | `Focusable(true)` | `false` | Marks get `tabindex`, `role="img"`, and an `aria-label` from the tooltip text. Enter or Space calls `OnClick`. |
 
@@ -348,26 +346,43 @@ Project layout:
 | Path | Content |
 | --- | --- |
 | `d3-eazy.js` | Public entry point. Exports every chart. |
-| `charts.js` | The first ten charts and the shared helpers. |
-| `charts-more.js` | The other charts, built with one `makeChart` factory. |
+| `chart-kit.js` | The `makeChart` factory and the helpers every chart uses (axes, legend, tooltips, grow animation). |
+| `charts-classic.js` | `BarChartSimple`, `GroupedBarChartSimple`, `DonutChartSimple`, `LineLinearSpark`, `LineTimeChartSimple`, `MultiLineTimeChartSimple`, `SingleHorzBarChart`, `LineAndBarChartSimple`, `HeatMapBlockedSimple`, `CircularHeatChartSimple`. |
+| `charts-more.js` | The other 28 charts. |
 | `features.js` | Themes, palettes, number formats, tooltip, events, export, resize. |
 | `events.js` | Small DOM event helpers (`ready`, `addEventListener`). |
 | `js/example.jsx`, `js/example-more.jsx`, `js/playground.jsx` | Source of the demo page and the playground. |
 | `tests/` | Tests and the jsdom helper. |
 
 To add a chart, write a render function in `charts-more.js` and export `() => makeChart(defaults, render)`.
+Inside the render function, use the helpers from `chart-kit.js` (`axisBottom`, `axisLeft`, `legend`, `tip`, `colours`, `V`) so the chart gets the shared options for free.
 Every key in `defaults` becomes a getter/setter. Then add a configuration and the expected number
-of `.mark` elements to `tests/more-fixtures.js`. The tests fail if an exported chart has no configuration,
+of `.mark` elements to `tests/more-fixtures.js` (or `tests/classic-fixtures.js` for the first ten charts). The tests fail if an exported chart has no configuration,
 if a chart writes `NaN` or `undefined` into an attribute, or if the mark count is wrong.
 
 ## Known limits
 
 - Charts are not tested in a real browser by the test suite. The suite uses jsdom, which has no layout engine.
   Check the demo page after a change.
-- Most charts redraw instead of animating when you change a setter.
-- `SingleHorzBarChart` and `LineAndBarChartSimple` have the least testing. Treat them as unstable.
+- Every chart redraws when you change a setter. There is no animated transition between two states of the data.
 - `ForceNetworkSimple` runs its layout once per draw, so it does not animate.
-- `HeatMapBlockedSimple` reads the `status` field of each record. Use `ColourFnZ` for a custom colour function.
+- `HeatMapBlockedSimple` reads the `status` field of each record by default. Change it with `StatusAccessor`, or colour with `ColourFnZ`.
+
+## Changes for code written against the first ten charts
+
+The first ten charts were rebuilt on the shared factory. Their setter names are the same.
+These things changed:
+
+- Setters redraw the chart. `BarChartSimple.Data()` and `DonutChartSimple.Data()` no longer animate between states.
+- Default margins are now `40 / 20 / 30 / 20` (left, right, bottom, top) instead of `0`, so axes are visible without setting margins.
+- `ColourDomain` defaults to the keys in the data. `ColourRange` defaults to the theme palette (Tableau 10 in the light theme).
+- `BarChartSimple` text labels (`WithText`) pick a contrasting colour. `TextFill` and `TextAnchor` default to automatic.
+- `BaselineOffset` is now the value where bars start and defaults to `0`.
+- `OnHover` accepts a function (called with the event, datum and node) or, on `LineLinearSpark` and `HeatMapBlockedSimple`, an event name for linked hover.
+- `MultiLineTimeChartSimple` shows a crosshair and a tooltip that lists every line. The fixed "Passed / Connected / Fibre Km" tooltip is gone.
+- `LineLinearSpark` draws the last value next to the line (`EndLabel(false)` hides it) and has no axes unless you turn them on with `ShowXAxis(true)` and `ShowYAxis(true)`.
+- `HeatMapBlockedSimple` fills row by row, with `Orient("vertical")` for column by column.
+- Removed because they had no effect: `WithSubmit` and `ColourFnZ` on `LineLinearSpark`, `WithTime` and `DomainZ` on `HeatMapBlockedSimple`.
 
 ## Credits
 

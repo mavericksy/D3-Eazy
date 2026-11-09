@@ -189,6 +189,23 @@ function tooltipElement(theme) {
   return tooltipNode;
 }
 
+/** Show the shared tooltip box at a viewport position. `o.TooltipHtml` makes `text` HTML. */
+export function showTooltip(o, theme, text, x, y) {
+  const el = tooltipElement(theme);
+  if (o.TooltipHtml) el.innerHTML = text;
+  else el.textContent = text;
+  el.style.opacity = "1";
+  const w = el.offsetWidth || 0, h = el.offsetHeight || 0;
+  const vw = window.innerWidth || 1e9, vh = window.innerHeight || 1e9;
+  el.style.left = `${Math.max(4, Math.min(x + 14, vw - w - 4))}px`;
+  el.style.top = `${Math.max(4, Math.min(y + 14, vh - h - 4))}px`;
+}
+
+/** Hide the shared tooltip box. */
+export function hideTooltip() {
+  if (tooltipNode) tooltipNode.style.opacity = "0";
+}
+
 const MARK_TAGS = /^(rect|path|circle|line|polygon|ellipse|text)$/i;
 /** The data-bound mark under an event target, or null. Axis ticks and legend rows do not count. */
 function markOf(target, root) {
@@ -209,19 +226,8 @@ export function wireInteractions(svg, o, theme) {
     if (value && o.TooltipFormat) value = o.TooltipFormat(value, d3.select(source).datum(), source);
     return value;
   };
-  const show = (value, x, y) => {
-    const el = tooltipElement(theme);
-    if (o.TooltipHtml) el.innerHTML = value;
-    else el.textContent = value;
-    el.style.opacity = "1";
-    const w = el.offsetWidth || 0, h = el.offsetHeight || 0;
-    const vw = window.innerWidth || 1e9, vh = window.innerHeight || 1e9;
-    el.style.left = `${Math.max(4, Math.min(x + 14, vw - w - 4))}px`;
-    el.style.top = `${Math.max(4, Math.min(y + 14, vh - h - 4))}px`;
-  };
-  const hide = () => {
-    if (tooltipNode) tooltipNode.style.opacity = "0";
-  };
+  const show = (value, x, y) => showTooltip(o, theme, value, x, y);
+  const hide = hideTooltip;
   let current = null;
   const setHighlight = (node) => {
     if (!o.HoverHighlight) return;
@@ -235,14 +241,16 @@ export function wireInteractions(svg, o, theme) {
     if (node !== current) {
       current = node;
       setHighlight(node);
-      if (o.OnHover) o.OnHover(event, node ? d3.select(node).datum() : null, node);
+      if (typeof o.OnHover === "function") o.OnHover(event, node ? d3.select(node).datum() : null, node);
     }
+    // An overlay that shows its own tooltip (a crosshair) marks itself with data-self-tooltip.
+    if (event.target.closest && event.target.closest("[data-self-tooltip]")) return;
     const value = tooltip && node ? text(node) : null;
     if (value) show(value, event.clientX, event.clientY);
     else hide();
   });
   root.addEventListener("mouseleave", (event) => {
-    if (current && o.OnHover) o.OnHover(event, null, null);
+    if (current && typeof o.OnHover === "function") o.OnHover(event, null, null);
     current = null;
     setHighlight(null);
     hide();

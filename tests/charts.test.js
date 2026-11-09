@@ -5,47 +5,9 @@ import * as d3 from "d3";
 import * as lib from "../d3-eazy.js";
 import { moreConfigs } from "./more-fixtures.js";
 
-const dataset = [
-  { name: "JS", value: 52, nice: 46 },
-  { name: "GO", value: 301, nice: 202 },
-  { name: "C", value: 182, nice: 120 },
-];
-const names = dataset.map((d) => d.name);
-const ramp = d3.range(20).map((i) => ({ i, r: Math.sin(i / 3) + 2 }));
-const days = d3.range(10).map((i) => ({ t: new Date(2024, 0, 1 + i), v: i * 2 }));
+import { dataset, names, classicConfigs } from "./classic-fixtures.js";
 
-// One valid configuration per chart. Each returns a configured chart.
-const configs = {
-  BarChartSimple: (c) =>
-    c.Val((a) => a.value).Band((a) => a.name).DomainBand(names).DomainVal([0, 301])
-      .ColourDomain(names).Width(600).Height(300).Data(dataset),
-  GroupedBarChartSimple: (c) =>
-    c.Band(names).Subgroup(["value", "nice"]).DomainVal([0, 301])
-      .ColourDomain(names).Width(600).Height(300).Data(dataset),
-  DonutChartSimple: (c) =>
-    c.Width(600).Height(300).ColourDomain(names).Val((a) => a.value)
-      .ValText((a) => a.value).Key((a) => a.name).Data(dataset),
-  LineLinearSpark: (c) =>
-    c.Width(600).Height(300).DomainLinear([0, 19]).LinearAccessor((d) => d.i)
-      .DomainVal([0, 3]).ValAccessor((d) => d.r).Data(ramp),
-  LineTimeChartSimple: (c) =>
-    c.Width(600).Height(300).MarginLeft(30).MarginBottom(20).Time((d) => d.t)
-      .Linear((d) => d.v).DomainTime(d3.extent(days, (d) => d.t)).DomainLinear([0, 20]).Data(days),
-  MultiLineTimeChartSimple: (c) =>
-    c.Width(600).Height(300).Time((d) => d.t).LineKeys(["a", "b"]).ColourDomain(["a", "b"])
-      .DomainTime(d3.extent(days, (d) => d.t)).DomainVal([0, 40])
-      .Data(days.map((d) => ({ t: d.t, a: d.v, b: d.v * 2 }))),
-  SingleHorzBarChart: (c) =>
-    c.Width(600).Height(60).ColourDomain(["a", "b"]).DomainVal([0, 7])
-      .Data(d3.stack().keys(["a", "b"])([{ a: 3, b: 4 }])),
-  LineAndBarChartSimple: (c) =>
-    c.Width(600).Height(300).BandDomain([0, 10]).ValDomain([0, 10]).ThresholdBin(1)
-      .Data([{ key: 1, value: 3 }, { key: 4, value: 7 }, { key: 8, value: 5 }]),
-  HeatMapBlockedSimple: (c) =>
-    c.Width(600).Height(300).ColourDomainZ(["ok", "bad"]).DateAccessor((d) => d.t)
-      .Data(days.map((d, i) => ({ t: d.t, status: i % 2 ? "ok" : "bad" }))),
-  CircularHeatChartSimple: (c) => c.Width(600).Height(300).Data(d3.range(48)),
-};
+const configs = { ...classicConfigs };
 
 // The extra charts share one factory. Add them to the generic render and setter tests.
 for (const [name, [configure]] of Object.entries(moreConfigs)) configs[name] = configure;
@@ -190,8 +152,8 @@ test("bar labels are centred on each bar and inside only the long bars", () => {
   assert.ok(texts.every((t) => t.getAttribute("text-anchor") === "middle"));
   // values 52, 301, 182 against a 301 domain: only 301 is longer than 50% of the plot
   const fills = texts.map((t) => t.getAttribute("fill"));
-  assert.equal(fills[0], "#222", "short bar: dark text outside the bar");
-  assert.notEqual(fills[1], "#222", "long bar: contrast text inside the bar");
+  assert.equal(fills[0], "#1c1e21", "short bar: theme text colour outside the bar");
+  assert.notEqual(fills[1], "#1c1e21", "long bar: contrast text inside the bar");
 });
 
 test("labels on a flipped bar chart sit at the bar end, outside short bars", () => {
@@ -219,5 +181,5 @@ test("grouped bar labels exist for every bar and use readable colours", () => {
   );
   const texts = [...el.querySelectorAll("text.bar-text")];
   assert.equal(texts.length, 6);
-  assert.ok(texts.every((t) => ["#222", "#111", "#fff"].includes(t.getAttribute("fill"))));
+  assert.ok(texts.every((t) => ["#1c1e21", "#111", "#fff"].includes(t.getAttribute("fill"))));
 });

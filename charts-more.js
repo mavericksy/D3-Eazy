@@ -6,373 +6,61 @@
 // "vertical" puts them on the y axis.
 import * as d3 from "d3";
 import { sankey, sankeyLinkHorizontal, sankeyJustify, sankeyLeft, sankeyRight, sankeyCenter } from "d3-sankey";
-import { getBaseSVG, responsivefy, makeRedraw } from "./charts.js";
 import {
-  resolveTheme, rangeOf, makeFormatter, axisFormatter, applyFrame, wireInteractions,
-  prefersReducedMotion, observeResize, resolveInterpolator,
-} from "./features.js";
-
-// --- factory ---------------------------------------------------------------------------
-
-// The chart being drawn right now. Helpers read it, so render functions do not pass options around.
-let ACTIVE = null;
-
-// Options every chart has. A chart's own defaults are added on top.
-const commonDefaults = {
-  // identity and size
-  SvgID: "", Title: "", Description: "", Data: [], Width: 600, Height: 400,
-  MarginTop: 20, MarginRight: 20, MarginBottom: 30, MarginLeft: 40,
-  // colour
-  ColourDomain: [], ColourRange: null, Palette: null, ColourOverrides: {}, Theme: "light",
-  Background: null, FontFamily: null, FontSize: null,
-  // heading
-  ShowTitle: false, Subtitle: "", Caption: "", TitleAlign: "left",
-  // axes
-  XLabel: "", YLabel: "", XFormat: null, YFormat: null, XTicks: null, YTicks: null,
-  XTickRotate: 0, ShowXAxis: true, ShowYAxis: true, Grid: "none", GridDash: "",
-  // legend
-  Legend: "top-right", LegendOrient: "vertical", LegendTitle: "", LegendInteractive: true,
-  // tooltip and interaction
-  Tooltip: "custom", TooltipFormat: null, TooltipHtml: false,
-  OnClick: null, OnHover: null, HoverHighlight: false, Focusable: false,
-  // motion
-  Animate: true, Duration: 600, Stagger: 12, Ease: d3.easeCubicOut,
-  // overlays
-  RefLines: [], Annotations: [],
-  // data preparation
-  Filter: null, SortBy: null, SortOrder: "desc", Limit: null, EmptyText: "No data",
-  // number format
-  Locale: "en-US", ValueFormat: null, DataLabels: false, LabelFormat: null,
-  // mark style
-  MarkStroke: null, MarkStrokeWidth: null, MarkOpacity: null, MarkCornerRadius: null,
-  AutoResize: false,
-};
-
-const defaultEmpty = (o) => Array.isArray(o.Data) && o.Data.length === 0;
-
-function prepareData(state) {
-  let data = state.Data;
-  if (!Array.isArray(data)) return state;
-  if (state.Filter) data = data.filter(state.Filter);
-  if (state.SortBy) {
-    const compare = state.SortOrder === "asc" ? d3.ascending : d3.descending;
-    data = data.slice().sort((a, b) => compare(state.SortBy(a), state.SortBy(b)));
-  }
-  if (state.Limit != null) data = data.slice(0, state.Limit);
-  return data === state.Data ? state : { ...state, Data: data };
-}
-
-// Space for the heading, axis labels and caption, added around the user's margins.
-function marginsOf(o) {
-  const m = { top: o.MarginTop, right: o.MarginRight, bottom: o.MarginBottom, left: o.MarginLeft };
-  if (o.ShowTitle && o.Title) m.top += 24;
-  if (o.Subtitle) m.top += 16;
-  if (o.Caption) m.bottom += 16;
-  if (o.XLabel) m.bottom += 18;
-  if (o.YLabel) m.left += 18;
-  return m;
-}
-
-function makeChart(defaults, render, { empty = defaultEmpty } = {}) {
-  const state = { ...commonDefaults, ...defaults };
-  const watched = new WeakSet();
-  var redraw_ = makeRedraw(chart);
-  function chart(selection) {
-    redraw_.mount(selection);
-    selection.each(function () {
-      const o = prepareData(state);
-      const theme = resolveTheme(o.Theme);
-      const m = marginsOf(o);
-      const size = { width: Math.max(0, o.Width - m.left - m.right), height: Math.max(0, o.Height - m.top - m.bottom) };
-      const root = getBaseSVG(this, o.SvgID, null, responsivefy, { title: o.Title, description: o.Description });
-      // Scale the drawing to Width x Height, whatever size the container has.
-      root.attr("viewBox", `0 0 ${o.Width} ${o.Height}`);
-      applyFrame(root, o, o.Width, o.Height);
-      const g = root.append("g").attr("transform", `translate(${m.left},${m.top})`);
-      if (empty(o)) {
-        g.append("text").attr("class", "empty-state").attr("x", size.width / 2).attr("y", size.height / 2)
-          .attr("text-anchor", "middle").attr("fill", theme.muted).text(o.EmptyText);
-      } else {
-        ACTIVE = { o, theme, root, g, size, x: null, y: null };
-        try {
-          render.call(this, g, o, size);
-          drawOverlays(g, o, size, theme);
-          styleChart(root, o, theme);
-        } finally {
-          ACTIVE = null;
-        }
-        animate(g, o);
-      }
-      wireInteractions(root, o, theme);
-      if (o.AutoResize && !watched.has(this)) {
-        watched.add(this);
-        observeResize(this, ({ width, height }) => {
-          if (!state.AutoResize) return;
-          state.Width = Math.round(width);
-          state.Height = Math.round(height);
-          redraw_.schedule();
-        });
-      }
-    });
-  }
-  for (const key of Object.keys(state)) {
-    chart[key] = function (value) {
-      if (!arguments.length) return state[key];
-      state[key] = value;
-      redraw_.schedule();
-      return chart;
-    };
-  }
-  return chart;
-}
-
-function styleChart(root, o, theme) {
-  root.selectAll("g.axis .domain, g.axis .tick line").attr("stroke", theme.axis);
-  const marks = root.selectAll(".mark");
-  if (o.MarkStroke != null) marks.attr("stroke", o.MarkStroke);
-  if (o.MarkStrokeWidth != null) marks.attr("stroke-width", o.MarkStrokeWidth);
-  if (o.MarkCornerRadius != null) root.selectAll("rect.mark").attr("rx", o.MarkCornerRadius);
-}
-
-function animate(g, o) {
-  const base = o.MarkOpacity ?? 1;
-  const marks = g.selectAll(".mark");
-  if (!o.Animate || prefersReducedMotion()) {
-    if (o.MarkOpacity != null) marks.style("opacity", base);
-    return;
-  }
-  marks.style("opacity", 0).transition().duration(o.Duration)
-    .delay((d, i) => Math.min(i * o.Stagger, 600)).ease(o.Ease).style("opacity", base);
-}
-
-// --- helpers ---------------------------------------------------------------------------
-
-// Ordinal colour scale. ColourOverrides ({ key: colour }) wins over the scale.
-function colours(o, domain) {
-  const scale = d3.scaleOrdinal(o.ColourDomain.length ? o.ColourDomain : domain, rangeOf(o));
-  return (key) => (o.ColourOverrides && o.ColourOverrides[key]) || scale(key);
-}
-const palette = () => rangeOf(ACTIVE.o);
-
-// Value formatter for tooltips and labels. Plain numbers when ValueFormat is not set.
-const V = (value) => {
-  const format = makeFormatter(ACTIVE.o, ACTIVE.o.ValueFormat);
-  return format && typeof value === "number" ? format(value) : value;
-};
-
-// Tag marks that belong to a series, so the legend can highlight or hide them.
-const keyed = (selection, key) => selection.attr("data-key", typeof key === "function" ? (d, i, n) => String(key(d, i, n)) : String(key));
-
-// Hover text. "custom" tooltips read data-tip. "native" ones use the browser's <title>.
-function tip(selection, text) {
-  const mode = ACTIVE ? ACTIVE.o.Tooltip : "native";
-  if (mode === "none") return selection;
-  if (mode === "native") return selection.append("title").text(text);
-  return selection.attr("data-tip", text);
-}
-
-function gridLines(g, scale, orient, ticks) {
-  const { o, theme, size } = ACTIVE;
-  const gen = orient === "x" ? d3.axisBottom(scale).tickSize(-size.height) : d3.axisLeft(scale).tickSize(-size.width);
-  gen.tickFormat("");
-  if (!scale.bandwidth && ticks != null) gen.ticks(ticks);
-  const grid = g.insert("g", ":first-child").attr("class", `grid ${orient}-grid`).call(gen);
-  if (orient === "x") grid.attr("transform", `translate(0,${size.height})`);
-  grid.select(".domain").remove();
-  grid.selectAll("line").attr("stroke", theme.grid).attr("stroke-dasharray", o.GridDash || null);
-}
-
-function rotateTicks(axis, degrees) {
-  if (degrees) axis.selectAll("text").attr("transform", `rotate(${degrees})`).style("text-anchor", degrees < 0 ? "end" : "start");
-}
-
-// The bottom axis. "x" in every option name means this axis, even on a flipped bar chart.
-function axisBottom(g, scale, h, ticks = 6) {
-  const { o, size } = ACTIVE;
-  ACTIVE.x = scale;
-  const count = o.XTicks ?? ticks;
-  if (o.Grid === "x" || o.Grid === "both") gridLines(g, scale, "x", count);
-  if (o.XLabel) {
-    g.append("text").attr("class", "axis-label").attr("x", size.width / 2).attr("y", h + o.MarginBottom + 12)
-      .attr("text-anchor", "middle").attr("font-size", 11).attr("fill", "currentColor").text(o.XLabel);
-  }
-  if (!o.ShowXAxis) return null;
-  const gen = d3.axisBottom(scale);
-  if (!scale.bandwidth) gen.ticks(count);
-  const format = axisFormatter(o, scale, o.XFormat);
-  if (format) gen.tickFormat(format);
-  const axis = g.append("g").attr("class", "axis x-axis").attr("transform", `translate(0,${h})`).call(gen);
-  rotateTicks(axis, o.XTickRotate);
-  return axis;
-}
-
-// The left axis ("y" in every option name).
-function axisLeft(g, scale, ticks = 5) {
-  const { o, size } = ACTIVE;
-  ACTIVE.y = scale;
-  const count = o.YTicks ?? ticks;
-  if (o.Grid === "y" || o.Grid === "both") gridLines(g, scale, "y", count);
-  if (o.YLabel) {
-    g.append("text").attr("class", "axis-label").attr("transform", `translate(${-o.MarginLeft - 6},${size.height / 2}) rotate(-90)`)
-      .attr("text-anchor", "middle").attr("font-size", 11).attr("fill", "currentColor").text(o.YLabel);
-  }
-  if (!o.ShowYAxis) return null;
-  const gen = d3.axisLeft(scale);
-  if (!scale.bandwidth) gen.ticks(count);
-  const format = axisFormatter(o, scale, o.YFormat);
-  if (format) gen.tickFormat(format);
-  return g.append("g").attr("class", "axis y-axis").call(gen);
-}
-
-// A scale type by name, for the YScale option.
-function valueScale(type) {
-  return { linear: d3.scaleLinear, log: d3.scaleLog, sqrt: d3.scaleSqrt, symlog: d3.scaleSymlog }[type] || d3.scaleLinear;
-}
-
-// Time scale when the values are Dates, linear scale otherwise.
-function xScaleFor(values, range) {
-  const first = values.find((v) => v != null);
-  const scale = first instanceof Date ? d3.scaleTime() : d3.scaleLinear();
-  return scale.domain(d3.extent(values)).range(range);
-}
-
-// Legend. Position, direction and title come from the Legend* options. Hover highlights a
-// series and click hides it, when LegendInteractive is on.
-function legend(g, keys, colour) {
-  const { o, size, root } = ACTIVE;
-  if (o.Legend === "none" || !keys.length) return;
-  const horizontal = o.LegendOrient === "horizontal";
-  const widths = keys.map((k) => 18 + String(k).length * 6);
-  const titleHeight = o.LegendTitle ? 16 : 0;
-  const blockWidth = horizontal ? d3.sum(widths) : d3.max(widths);
-  const blockHeight = titleHeight + (horizontal ? 14 : keys.length * 16);
-  const [vertical, side] = o.Legend.split("-");
-  const x = side === "left" ? 0 : Math.max(0, size.width - blockWidth);
-  const y = vertical === "bottom" ? Math.max(0, size.height - blockHeight) : 0;
-  const lg = g.append("g").attr("class", "legend").attr("transform", `translate(${x},${y})`);
-  if (o.LegendTitle) lg.append("text").attr("font-size", 10).attr("font-weight", 600).attr("y", 9).text(o.LegendTitle);
-  const hidden = new Set();
-  const marksOf = (key) => root.selectAll("[data-key]").filter(function () { return this.getAttribute("data-key") === String(key); });
-  let cursor = 0;
-  keys.forEach((key, i) => {
-    const row = lg.append("g").attr("class", "legend-item")
-      .attr("transform", horizontal ? `translate(${cursor},${titleHeight})` : `translate(0,${titleHeight + i * 16})`);
-    cursor += widths[i];
-    row.append("rect").attr("width", 10).attr("height", 10).attr("fill", colour(key));
-    row.append("text").attr("x", 14).attr("y", 9).attr("font-size", 10).attr("fill", "currentColor").text(key);
-    if (!o.LegendInteractive) return;
-    row.style("cursor", "pointer")
-      .on("mouseenter", () => {
-        root.selectAll("[data-key]").style("opacity", function () {
-          return this.getAttribute("data-key") === String(key) ? null : 0.2;
-        });
-      })
-      .on("mouseleave", () => root.selectAll("[data-key]").style("opacity", null))
-      .on("click", () => {
-        if (hidden.has(key)) hidden.delete(key); else hidden.add(key);
-        marksOf(key).style("display", hidden.has(key) ? "none" : null);
-        row.attr("opacity", hidden.has(key) ? 0.4 : 1);
-      });
-  });
-}
-
-// Reference lines, bands and annotations, placed with the scales of the two axes.
-function position(scale, value) {
-  if (!scale) return null;
-  const v = scale.domain()[0] instanceof Date && typeof value === "string" ? new Date(value) : value;
-  const p = scale(v);
-  return p == null || Number.isNaN(p) ? null : p + (scale.bandwidth ? scale.bandwidth() / 2 : 0);
-}
-
-function drawOverlays(g, o, size, theme) {
-  const { x, y } = ACTIVE;
-  for (const ref of o.RefLines || []) {
-    const scale = ref.axis === "x" ? x : y;
-    const vertical = ref.axis === "x";
-    const layer = g.append("g").attr("class", "refline");
-    const colour = ref.colour || theme.muted;
-    if (ref.from != null && ref.to != null) {
-      const a = position(scale, ref.from), b = position(scale, ref.to);
-      if (a == null || b == null) continue;
-      layer.append("rect").attr("fill", colour).attr("opacity", ref.opacity ?? 0.12)
-        .attr(vertical ? "x" : "y", Math.min(a, b)).attr(vertical ? "width" : "height", Math.abs(b - a))
-        .attr(vertical ? "y" : "x", 0).attr(vertical ? "height" : "width", vertical ? size.height : size.width);
-    } else {
-      const v = position(scale, ref.value);
-      if (v == null) continue;
-      layer.append("line").attr("stroke", colour).attr("stroke-width", ref.width ?? 1).attr("stroke-dasharray", ref.dash ?? "4 3")
-        .attr(vertical ? "x1" : "y1", v).attr(vertical ? "x2" : "y2", v)
-        .attr(vertical ? "y1" : "x1", 0).attr(vertical ? "y2" : "x2", vertical ? size.height : size.width);
-    }
-    if (ref.label) {
-      const v = position(scale, ref.value ?? ref.from);
-      if (v != null) {
-        layer.append("text").attr("font-size", 10).attr("fill", colour)
-          .attr("x", vertical ? v + 3 : size.width - 3).attr("y", vertical ? 10 : v - 3)
-          .attr("text-anchor", vertical ? "start" : "end").text(ref.label);
-      }
-    }
-  }
-  for (const note of o.Annotations || []) {
-    const px = position(x, note.x), py = position(y, note.y);
-    if (px == null || py == null) continue;
-    const dx = note.dx ?? 0, dy = note.dy ?? -24;
-    const colour = note.colour || theme.text;
-    const layer = g.append("g").attr("class", "annotation");
-    layer.append("circle").attr("cx", px).attr("cy", py).attr("r", 3).attr("fill", "none").attr("stroke", colour);
-    layer.append("line").attr("x1", px).attr("y1", py).attr("x2", px + dx).attr("y2", py + dy).attr("stroke", colour).attr("stroke-opacity", 0.6);
-    layer.append("text").attr("x", px + dx).attr("y", py + dy + (dy < 0 ? -4 : 12)).attr("font-size", 10).attr("fill", colour)
-      .attr("text-anchor", dx < 0 ? "end" : dx > 0 ? "start" : "middle").text(note.text);
-  }
-}
-
-// Least-squares line through (x, y) pairs. Returns two end points, or null.
-function trendPoints(points) {
-  const n = points.length;
-  if (n < 2) return null;
-  const mx = d3.mean(points, (p) => p[0]), my = d3.mean(points, (p) => p[1]);
-  const denominator = d3.sum(points, (p) => (p[0] - mx) ** 2);
-  if (!denominator) return null;
-  const slope = d3.sum(points, (p) => (p[0] - mx) * (p[1] - my)) / denominator;
-  const [lo, hi] = d3.extent(points, (p) => p[0]);
-  return [[lo, my + slope * (lo - mx)], [hi, my + slope * (hi - mx)]];
-}
-
-// Label past the end of a bar-like mark, or inside it when the bar is long.
-function labelAt(g, text, x, y, anchor, fill) {
-  return g.append("text").attr("class", "data-label").attr("x", x).attr("y", y).attr("text-anchor", anchor)
-    .attr("font-size", 10).attr("fill", fill).text(text);
-}
-const labelText = (o, value) => {
-  const format = makeFormatter(o, o.LabelFormat || o.ValueFormat);
-  return format ? format(value) : value;
-};
-
-// Swap (band, value) coordinates by orientation.
-const place = (orient) => (orient === "vertical" ? (b, v) => [v, b] : (b, v) => [b, v]);
-
-// Value axis + band axis for a band/value chart. Returns the scales.
-function bandValueScales(g, o, { width: w, height: h }, bands, valueDomain, band = d3.scaleBand) {
-  const vert = o.Orient === "vertical";
-  const bandScale = band().domain(bands).range(vert ? [0, h] : [0, w]);
-  if (bandScale.padding) bandScale.padding(o.Padding ?? 0.2);
-  const val = d3.scaleLinear().domain(valueDomain).nice().range(vert ? [0, w] : [h, 0]);
-  if (vert) {
-    axisLeft(g, bandScale);
-    axisBottom(g, val, h, 5);
-  } else {
-    axisBottom(g, bandScale, h);
-    axisLeft(g, val);
-  }
-  return { bandScale, val };
-}
+  makeChart, colours, palette, V, formatValue, keyed, tip, axisBottom, axisLeft, valueScale, xScaleFor, legend,
+  trendPoints, labelAt, labelText, place, bandValueScales, active, showTooltip, hideTooltip, makeFormatter,
+} from "./chart-kit.js";
+import { resolveInterpolator } from "./features.js";
 
 // --- line and area ---------------------------------------------------------------------
 
-function xyRender(g, o, { width: w, height: h }) {
+
+// A vertical line that follows the pointer, a dot on every series, and one tooltip that lists them.
+function crosshair(g, o, { x, y, groups, colour, w, h }) {
+  const { theme } = active();
+  const series = [...groups].map(([key, rows]) => ({ key, rows: rows.slice().sort((a, b) => o.X(a) - o.X(b)) }));
+  const bisect = d3.bisector((d) => +o.X(d)).center;
+  const line = g.append("line").attr("class", "crosshair").attr("stroke", theme.axis).attr("stroke-dasharray", "4 3")
+    .attr("y1", 0).attr("y2", h).style("opacity", 0).style("pointer-events", "none");
+  const dots = g.append("g").style("pointer-events", "none").selectAll("circle").data(series).join("circle")
+    .attr("r", 4).attr("fill", (s) => colour(s.key)).attr("stroke", "#fff").style("opacity", 0);
+  const heading = (value) => (value instanceof Date ? value.toLocaleString(typeof o.Locale === "string" ? o.Locale : "en-US", o.DateOptions) : formatValue(o, value));
+  g.append("rect").attr("class", "crosshair-area").attr("data-self-tooltip", "").attr("width", w).attr("height", h).attr("fill", "none").attr("pointer-events", "all")
+    .on("mousemove", (event) => {
+      const px = d3.pointer(event)[0];
+      const target = x.invert(px);
+      const picks = series.map((s) => ({ s, d: s.rows[Math.max(0, Math.min(s.rows.length - 1, bisect(s.rows, +target)))] })).filter((p) => p.d);
+      if (!picks.length) return;
+      const anchor = picks[0].d;
+      line.attr("x1", x(o.X(anchor))).attr("x2", x(o.X(anchor))).style("opacity", 1);
+      dots.style("opacity", (s) => (picks.some((p) => p.s === s) ? 1 : 0))
+        .attr("cx", (s) => { const p = picks.find((q) => q.s === s); return p ? x(o.X(p.d)) : 0; })
+        .attr("cy", (s) => { const p = picks.find((q) => q.s === s); return p ? y(o.Y(p.d)) : 0; });
+      if (o.Tooltip !== "none") {
+        const rows = picks.map((p) => `${(o.LegendLabels && o.LegendLabels[p.s.key]) || p.s.key || "value"}: ${formatValue(o, o.Y(p.d))}`);
+        showTooltip(o, theme, [heading(o.X(anchor)), ...rows].join("\n"), event.clientX, event.clientY);
+      }
+    })
+    .on("click", (event) => {
+      // The overlay covers the lines, so it passes a click on to OnClick with the point nearest the pointer.
+      if (typeof o.OnClick !== "function") return;
+      const [px, py] = d3.pointer(event);
+      const target = x.invert(px);
+      const points = series
+        .map((s) => s.rows[Math.max(0, Math.min(s.rows.length - 1, bisect(s.rows, +target)))])
+        .filter(Boolean);
+      if (!points.length) return;
+      const best = d3.least(points, (d) => Math.abs(y(o.Y(d)) - py));
+      o.OnClick(event, best, event.currentTarget);
+    })
+    .on("mouseleave", () => { line.style("opacity", 0); dots.style("opacity", 0); hideTooltip(); });
+}
+
+export function xyRender(g, o, { width: w, height: h }) {
   const { Data: data, X, Y } = o;
   const defined = (d) => Y(d) != null && !Number.isNaN(+Y(d));
   const x = xScaleFor(data.map(X), [0, w]);
+  if (o.DomainX && o.DomainX.length) x.domain(o.DomainX);
   const ys = data.filter(defined).map(Y);
   const type = valueScale(o.YScale);
   const lowest = o.YScale === "log" ? d3.min(ys.filter((v) => v > 0)) ?? 1 : Math.min(0, d3.min(ys) ?? 0);
@@ -392,14 +80,14 @@ function xyRender(g, o, { width: w, height: h }) {
       let fill = colour(key);
       if (o.Gradient) {
         const id = `${o.SvgID || "chart"}-fade-${index}`;
-        const grad = ACTIVE.root.append("defs").append("linearGradient").attr("id", id).attr("x1", 0).attr("x2", 0).attr("y1", 0).attr("y2", 1);
+        const grad = active().root.append("defs").append("linearGradient").attr("id", id).attr("x1", 0).attr("x2", 0).attr("y1", 0).attr("y2", 1);
         grad.append("stop").attr("offset", "0%").attr("stop-color", fill).attr("stop-opacity", 0.7);
         grad.append("stop").attr("offset", "100%").attr("stop-color", fill).attr("stop-opacity", 0.02);
         fill = `url(#${id})`;
       }
       keyed(g.append("path").attr("class", "area").attr("fill", fill).attr("opacity", o.Gradient ? 1 : o.Opacity).attr("d", area(sorted)), key);
     }
-    keyed(g.append("path").attr("class", "mark line").attr("fill", "none").attr("stroke", colour(key))
+    keyed(g.append("path").datum(sorted).attr("class", "mark line").attr("fill", "none").attr("stroke", colour(key))
       .attr("stroke-width", o.StrokeWidth).attr("stroke-dasharray", dash || null).attr("stroke-linecap", "round")
       .attr("d", line(sorted)), key);
     if (o.Points) {
@@ -420,9 +108,10 @@ function xyRender(g, o, { width: w, height: h }) {
     }
     index += 1;
   }
-  if (groups.size > 1) legend(g, [...groups.keys()], colour);
+  if (groups.size > 1) legend(g, [...groups.keys()], colour, (key) => (o.LegendLabels && o.LegendLabels[key]) || key);
+  if (o.Crosshair) crosshair(g, o, { x, y, groups, colour, w, h });
 }
-const xyDefaults = {
+export const xyDefaults = {
   X: (d) => d.x,
   Y: (d) => d.y,
   Series: null,
@@ -436,6 +125,10 @@ const xyDefaults = {
   Dash: null,
   Gradient: false,
   Trendline: false,
+  DomainX: null,
+  Crosshair: false,
+  LegendLabels: null,
+  DateOptions: { year: "numeric", month: "short", day: "numeric" },
 };
 
 /** Lines over a number or date x axis. `Series` (accessor) splits the data into several lines. */

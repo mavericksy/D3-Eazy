@@ -4,6 +4,9 @@ import assert from "node:assert/strict";
 import * as d3 from "d3";
 import * as lib from "../d3-eazy.js";
 import { moreConfigs } from "./more-fixtures.js";
+import { classicConfigs } from "./classic-fixtures.js";
+
+const everyChart = [...Object.keys(classicConfigs), ...Object.keys(moreConfigs)];
 
 const rows = [
   { name: "a", value: 10 }, { name: "b", value: 40 }, { name: "c", value: 25 }, { name: "d", value: 5 },
@@ -20,8 +23,8 @@ const draw = (chart, id) => {
 };
 const click = (node) => node.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
 
-test("every new chart renders its default state without throwing", () => {
-  for (const name of Object.keys(moreConfigs)) {
+test("every chart renders its default state without throwing", () => {
+  for (const name of everyChart) {
     const el = makeContainer(`default-${name}`);
     assert.doesNotThrow(() => d3.select(el).call(lib[name]().SvgID(`d-${name}`)), name);
     assert.equal(el.querySelectorAll("svg").length, 1);
@@ -347,7 +350,7 @@ test("toSvgString returns a standalone svg at design size", () => {
   assert.throws(() => lib.toSvgString(makeContainer("no-svg")), /no <svg>/);
 });
 
-test("older charts get theme, heading and click callbacks too", () => {
+test("BarChartSimple takes theme, heading and click callbacks", () => {
   const names = rows.map((d) => d.name);
   const got = [];
   const chart = lib.BarChartSimple().SvgID("old").Val((a) => a.value).Band((a) => a.name).DomainBand(names)
@@ -360,9 +363,9 @@ test("older charts get theme, heading and click callbacks too", () => {
   assert.deepEqual(got[0], rows[0]);
 });
 
-test("the extra feature setters exist on every new chart and chain", () => {
+test("the extra feature setters exist on every chart and chain", () => {
   const keys = ["Theme", "Palette", "Legend", "Tooltip", "OnClick", "Animate", "RefLines", "SortBy", "Locale", "Grid", "AutoResize"];
-  for (const name of Object.keys(moreConfigs)) {
+  for (const name of everyChart) {
     const chart = lib[name]();
     for (const key of keys) assert.equal(typeof chart[key], "function", `${name}.${key}`);
     assert.equal(chart.Theme("dark"), chart);
