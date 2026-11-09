@@ -2,7 +2,8 @@ import * as d3 from "d3";
 import { DateTime } from "luxon";
 import { addEventListener } from "./events.js";
 //
-const isUndef = (a, fn) => ((fn === 'function') ? fn(a) : a) === undefined;
+// True when `a` is undefined. If `fn` is a function, test fn(a) instead.
+const isUndef = (a, fn) => (typeof fn === "function" ? fn(a) : a) === undefined;
 //
 // TODO Debug cradle
 const debugLog = (l) => console.debug(l);
@@ -19,7 +20,7 @@ function responsivefy(svg) {
   //
   svg
     .attr("viewBox", "0 0 " + width + " " + height)
-    .attr("perserveAspectRatio", "xMidYMin")
+    .attr("preserveAspectRatio", "xMidYMin")
     .call(resize);
   //
   function resize(evt) {
@@ -33,15 +34,47 @@ function responsivefy(svg) {
   d3.select(window).on("resize." + container.attr("id"), resize);
 }
 //
+// Every SVG a chart draws is recorded per container so a redraw can remove it.
+const createdSvgs = new WeakMap();
 // TODO objects parameters for more configurability
 function getBaseSVG(_selection, _svg_id, _dimensions, _responsivefy) {
-  const _d = _dimensions;
-  return d3
+  const svg = d3
     .select(_selection)
     .append("svg")
     .attr("id", _svg_id)
     .attr("style", "max-width: 100%;overflow:visible;")
     .call(_responsivefy);
+  if (!createdSvgs.has(_selection)) createdSvgs.set(_selection, []);
+  createdSvgs.get(_selection).push(svg.node());
+  return svg;
+}
+//
+// General update pattern fallback.
+// Charts call mount(selection) on every render. When a setter changes a value and the
+// chart has no dedicated update hook, schedule() re-renders every mounted container once
+// per tick, so a chain of setter calls causes one redraw, not one per setter.
+function makeRedraw(chart) {
+  const mounts = [];
+  let pending = false;
+  return {
+    mount(selection) {
+      selection.each(function () {
+        if (!mounts.includes(this)) mounts.push(this);
+      });
+    },
+    schedule() {
+      if (!mounts.length || pending) return;
+      pending = true;
+      queueMicrotask(() => {
+        pending = false;
+        for (const el of mounts) {
+          for (const old of createdSvgs.get(el) || []) old.remove();
+          createdSvgs.set(el, []);
+        }
+        chart(d3.selectAll(mounts));
+      });
+    },
+  };
 }
 //
 const base_variables = {
@@ -74,7 +107,7 @@ var hovers = new Map();
 const selfCallBack = function(evt) {
   if(hovers.has(evt.type)){
     let cbs = hovers.get(evt.type);
-    for(cb of cbs){
+    for(const cb of cbs){
       cb(evt);
     }
   }
@@ -82,9 +115,7 @@ const selfCallBack = function(evt) {
 const hoverable = {
   submit: function(eventString, callBack){
     if(hovers.has(eventString)){
-      let arr = hovers.get(eventString);
-      arr.append(callBack);
-      hovers.set(eventString, arr);
+      hovers.get(eventString).push(callBack);
       return;
     }
     //
@@ -97,8 +128,11 @@ const hoverable = {
 // TODO: RETURN THE TOP-LEVEL SVG
 //
 function BarChartSimple() {
+  // Declared here so each chart instance keeps its own state (no implicit globals).
+  var updateDebug, updateBaselineOffset, updateBarPadding;
   //
-  var band,
+  var data = [],
+    band,
     val,
     svg_id,
     // vertical or horizontal
@@ -172,7 +206,9 @@ function BarChartSimple() {
   //
 
   // BarChartSimple
+  var redraw_ = makeRedraw(chart);
   function chart(selection) {
+    redraw_.mount(selection);
     //
     selection.each(function () {
       //
@@ -483,31 +519,6 @@ function BarChartSimple() {
             .attr("opacity", 1);
         }
       };
-      updateDebug = function () {};
-      updateBaselineOffset = function () {};
-      updateCornerRadiusX = function () {};
-      updateOrient = function () {};
-      updateWidth = function () {};
-      updateHeight = function () {};
-      updateMarginLeft = function () {};
-      updateMarginRight = function () {};
-      updateMarginTop = function () {};
-      updateMarginBottom = function () {};
-      updateDomainVal = function () {};
-      updateDomainBand = function () {};
-      updateBandAccessor = function () {};
-      updateColour = function () {};
-      updateColourDomain = function () {};
-      updateColourRange = function () {};
-      updateWithText = function () {};
-      updateTextFill = function () {};
-      updateTextAnchor = function () {};
-      updateTextDeltaY = function () {};
-      updateTextDeltaX = function () {};
-      updateTextFormat = function () {};
-      updateDomainRound = function () {};
-      updateBarLength = function () {};
-      updateBarPadding = function () {};
     });
   }
   //
@@ -515,24 +526,28 @@ function BarChartSimple() {
     if (!arguments.length) return debug;
     debug = bool;
     if (typeof updateDebug === "function") updateDebug();
+    else redraw_.schedule();
     return chart;
   };
   chart.BaselineOffset = function (val) {
     if (!arguments.length) return baseline_offset;
     baseline_offset = val;
     if (typeof updateBaselineOffset === "function") updateBaselineOffset();
+    else redraw_.schedule();
     return chart;
   };
   chart.BarPadding = function (val) {
     if (!arguments.length) return barPadding;
     barPadding = val;
     if (typeof updateBarPadding === "function") updateBarPadding();
+    else redraw_.schedule();
     return chart;
   };
   chart.CornerRadiusX = function (val) {
     if (!arguments.length) return corner_radius_x;
     corner_radius_x = val;
     if (typeof updateCornerRadiusX === "function") updateCornerRadiusX();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -546,6 +561,7 @@ function BarChartSimple() {
     if (!arguments.length) return withText;
     withText = bool;
     if (typeof updateWithText === "function") updateWithText();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -553,6 +569,7 @@ function BarChartSimple() {
     if (!arguments.length) return textFormat;
     textFormat = val;
     if (typeof updateTextFormat === "function") updateTextFormat();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -566,6 +583,7 @@ function BarChartSimple() {
     if (!arguments.length) return textFill;
     textFill = val;
     if (typeof updateTextFill === "function") updateTextFill();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -573,6 +591,7 @@ function BarChartSimple() {
     if (!arguments.length) return textAnchor;
     textAnchor = val;
     if (typeof updateTextAnchor === "function") updateTextAnchor();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -580,6 +599,7 @@ function BarChartSimple() {
     if (!arguments.length) return textDeltaY;
     textDeltaY = val;
     if (typeof updateTextDeltaY === "function") updateTextDeltaY();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -587,6 +607,7 @@ function BarChartSimple() {
     if (!arguments.length) return textDeltaX;
     textDeltaX = val;
     if (typeof updateTextDeltaX === "function") updateTextDeltaX();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -606,6 +627,7 @@ function BarChartSimple() {
     if (!arguments.length) return colour;
     colour = val;
     if (typeof updateColour === "function") updateColour();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -613,6 +635,7 @@ function BarChartSimple() {
     if (!arguments.length) return colourDomain;
     colourDomain = val;
     if (typeof updateColourDomain === "function") updateColourDomain();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -620,6 +643,7 @@ function BarChartSimple() {
     if (!arguments.length) return colourRange;
     colourRange = val;
     if (typeof updateColourRange === "function") updateColourRange();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -627,6 +651,7 @@ function BarChartSimple() {
     if (!arguments.length) return data;
     data = val;
     if (typeof updateData === "function") updateData();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -634,6 +659,7 @@ function BarChartSimple() {
     if (!arguments.length) return band_domain;
     band_domain = val;
     if (typeof updateDomainBand === "function") updateDomainBand();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -641,6 +667,7 @@ function BarChartSimple() {
     if (!arguments.length) return band_accessor;
     band_accessor = val;
     if (typeof updateBandAccessor === "function") updateBandAccessor();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -654,6 +681,7 @@ function BarChartSimple() {
     if (!arguments.length) return domainRound;
     domainRound = val;
     if (typeof updateDomainRound === "function") updateDomainRound();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -661,6 +689,7 @@ function BarChartSimple() {
     if (!arguments.length) return val_domain;
     val_domain = val;
     if (typeof updateDomainVal === "function") updateDomainVal();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -668,6 +697,7 @@ function BarChartSimple() {
     if (!arguments.length) return orient;
     orient = val;
     if (typeof updateOrient === "function") updateOrient();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -676,6 +706,7 @@ function BarChartSimple() {
     width = val;
     dims.width = width;
     if (typeof updateWidth === "function") updateWidth();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -684,6 +715,7 @@ function BarChartSimple() {
     height = val;
     dims.height = height;
     if (typeof updateHeight === "function") updateHeight();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -692,6 +724,7 @@ function BarChartSimple() {
     marginLeft = val;
     dims.marginLeft = marginLeft;
     if (typeof updateMarginLeft === "function") updateMarginLeft();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -700,6 +733,7 @@ function BarChartSimple() {
     marginRight = val;
     dims.marginRight = marginRight;
     if (typeof updateMarginRight === "function") updateMarginRight();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -708,6 +742,7 @@ function BarChartSimple() {
     marginTop = val;
     dims.marginTop = marginTop;
     if (typeof updateMarginTop === "function") updateMarginTop();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -716,6 +751,7 @@ function BarChartSimple() {
     marginBottom = val;
     dims.marginBottom = marginBottom;
     if (typeof updateMarginBottom === "function") updateMarginBottom();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -723,6 +759,7 @@ function BarChartSimple() {
     if (!arguments.length) return barLengthPercentage;
     barLengthPercentage = val;
     if (typeof updateBarLength === "function") updateBarLength();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -731,6 +768,8 @@ function BarChartSimple() {
 //
 //
 function GroupedBarChartSimple() {
+  // Declared here so each chart instance keeps its own state (no implicit globals).
+  var updateWithText;
   //
   var data = [],
     svg_id = "",
@@ -784,7 +823,9 @@ function GroupedBarChartSimple() {
     updateTextDeltaX;
   //
   // GroupedBarChartSimple
+  var redraw_ = makeRedraw(chart);
   function chart(selection) {
+    redraw_.mount(selection);
     selection.each(function () {
       var boundedWidth = dims.w - dims.marginRight - dims.marginLeft,
         boundedHeight = dims.h - dims.marginTop - dims.marginBottom,
@@ -910,23 +951,14 @@ function GroupedBarChartSimple() {
               : d3.axisLeft(val_linear));
       //
       //
-      updateData = function () {};
       //
-      updateColour = function () {};
       //
-      updateColourDomain = function () {};
       //
-      updateWidth = function () {};
       //
-      updateHeight = function () {};
       //
-      updateMarginTop = function () {};
       //
-      updateMarginRight = function () {};
       //
-      updateMarginBottom = function () {};
       //
-      updateMarginLeft = function () {};
       //
     });
   }
@@ -934,7 +966,8 @@ function GroupedBarChartSimple() {
   chart.Orient = function(val) {
     if(!arguments.length) return orient;
     orient = val;
-    if(typeof updateOrient === 'function') updateOrient();
+    if (typeof updateOrient === "function") updateOrient();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -948,6 +981,7 @@ function GroupedBarChartSimple() {
     if (!arguments.length) return data;
     data = val;
     if (typeof updateData === "function") updateData();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -955,6 +989,7 @@ function GroupedBarChartSimple() {
     if (!arguments.length) return withText;
     withText = val;
     if (typeof updateWithText === "function") updateWithText();
+    else redraw_.schedule();
     return chart;
   };
 
@@ -963,6 +998,7 @@ function GroupedBarChartSimple() {
     if (!arguments.length) return band_domain;
     band_domain = val;
     if (typeof updateDomainBand === "function") updateDomainBand();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -970,6 +1006,7 @@ function GroupedBarChartSimple() {
     if (!arguments.length) return subGroup_domain;
     subGroup_domain = val;
     if (typeof updateDomainSubgroup === "function") updateDomainSubgroup();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -977,6 +1014,7 @@ function GroupedBarChartSimple() {
     if (!arguments.length) return val_domain;
     val_domain = val;
     if (typeof updateDomainVal === "function") updateDomainVal();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -984,6 +1022,7 @@ function GroupedBarChartSimple() {
     if (!arguments.length) return colour;
     colour = val;
     if (typeof updateColour === "function") updateColour();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -991,6 +1030,7 @@ function GroupedBarChartSimple() {
     if (!arguments.length) return colourDomain;
     colourDomain = val;
     if (typeof updateColourDomain === "function") updateColourDomain();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -999,6 +1039,7 @@ function GroupedBarChartSimple() {
     width = val;
     dims.w = width;
     if (typeof updateWidth === "function") updateWidth();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1015,6 +1056,7 @@ function GroupedBarChartSimple() {
     marginLeft = val;
     dims.marginLeft = marginLeft;
     if (typeof updateMarginLeft === "function") updateMarginLeft();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1023,6 +1065,7 @@ function GroupedBarChartSimple() {
     marginRight = val;
     dims.marginRight = marginRight;
     if (typeof updateMarginRight === "function") updateMarginRight();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1031,6 +1074,7 @@ function GroupedBarChartSimple() {
     marginTop = val;
     dims.marginTop = marginTop;
     if (typeof updateMarginTop === "function") updateMarginTop();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1039,6 +1083,7 @@ function GroupedBarChartSimple() {
     marginBottom = val;
     dims.marginBottom = marginBottom;
     if (typeof updateMarginBottom === "function") updateMarginBottom();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1047,6 +1092,8 @@ function GroupedBarChartSimple() {
 //
 //
 function DonutChartSimple() {
+  // Declared here so each chart instance keeps its own state (no implicit globals).
+  var updateOuterRadiusArc, updateInnerRadiusArc;
   var svg_id = "",
     svg,
     pie,
@@ -1120,7 +1167,9 @@ function DonutChartSimple() {
       });
   };
   //
+  var redraw_ = makeRedraw(chart);
   function chart(selection) {
+    redraw_.mount(selection);
     //
     selection.each(function () {
       //
@@ -1286,13 +1335,6 @@ function DonutChartSimple() {
           );
       };
       //
-      updateData = function () {};
-      updateVal = function () {};
-      updateValText = function () {};
-      updateKey = function () {};
-      updateWidth = function () {};
-      updateHeight = function () {};
-      updateCenterText = function () {};
     });
   }
   //
@@ -1305,6 +1347,7 @@ function DonutChartSimple() {
     if (!arguments.length) return data;
     data = val;
     if (typeof updateData === "function") updateData();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1312,6 +1355,7 @@ function DonutChartSimple() {
     if (!arguments.length) return val;
     val = v;
     if (typeof updateVal === "function") updateVal();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1319,6 +1363,7 @@ function DonutChartSimple() {
     if (!arguments.length) return valtext;
     valtext = val;
     if (typeof updateValText === "function") updateValText();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1326,6 +1371,7 @@ function DonutChartSimple() {
     if (!arguments.length) return key;
     key = val;
     if (typeof updateKey === "function") updateKey();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1334,6 +1380,7 @@ function DonutChartSimple() {
     width = val;
     dims.width = val;
     if (typeof updateWidth === "function") updateWidth();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1350,6 +1397,7 @@ function DonutChartSimple() {
     marginTop = val;
     dims.marginTop = val;
     if (typeof updateMarginTop === "function") updateMarginTop();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1358,6 +1406,7 @@ function DonutChartSimple() {
     marginRight = val;
     dims.marginRight = val;
     if (typeof updateMarginRight === "function") updateMarginRight();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1366,6 +1415,7 @@ function DonutChartSimple() {
     marginTop = val;
     dims.marginBottom = val;
     if (typeof updateMarginBottom === "function") updateMarginBottom();
+    else redraw_.schedule();
     return chart;
   };
   chart.MarginLeft = function (val) {
@@ -1373,6 +1423,7 @@ function DonutChartSimple() {
     marginTop = val;
     dims.marginLeft = val;
     if (typeof updateMarginLeft === "function") updateMarginLeft();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1380,6 +1431,7 @@ function DonutChartSimple() {
     if (!arguments.length) return centerText;
     centerText = val;
     if (typeof updateCenterText === "function") updateCenterText();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1387,6 +1439,7 @@ function DonutChartSimple() {
     if (!arguments.length) return outerRadiusArc;
     outerRadiusArc = val;
     if (typeof updateOuterRadiusArc === "function") updateOuterRadiusArc();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1394,6 +1447,7 @@ function DonutChartSimple() {
     if (!arguments.length) return innerRadiusArc;
     innerRadiusArc = val;
     if (typeof updateInnerRadiusArc === "function") updateInnerRadiusArc();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1401,6 +1455,7 @@ function DonutChartSimple() {
     if (!arguments.length) return colourDomain;
     colourDomain = val;
     if (typeof updateColourDomain === "function") updateColourDomain();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1408,6 +1463,7 @@ function DonutChartSimple() {
     if (!arguments.length) return colourRange;
     colourRange = val;
     if (typeof updateColourRange === "function") updateColourRange();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1416,6 +1472,8 @@ function DonutChartSimple() {
 //
 //
 function LineLinearSpark() {
+  // Declared here so each chart instance keeps its own state (no implicit globals).
+  var updateCurve, updateRightScale, updateSubmit, updateChartColour, updateDomainLinear, updateLinearAccessor, updateDomainVal, updateValAccessor, updateColourFnZ, updateWidth, updateMarginTop, updateMarginRight, updateMarginBottom, updateMarginLeft;
   //
   var data = [],
     svg_id,
@@ -1450,12 +1508,11 @@ function LineLinearSpark() {
   var updateData;
   //
   //
+  var redraw_ = makeRedraw(chart);
   function chart(selection) {
+    redraw_.mount(selection);
     selection.each(function () {
       //
-      if(!height || !width) {
-       
-      }
       //
       var boundedWidth = dims.width - dims.marginRight - dims.marginLeft,
           boundedHeight = dims.height - dims.marginTop - dims.marginBottom;
@@ -1685,9 +1742,7 @@ function LineLinearSpark() {
         }
       }
       //
-      updateData = function () {};
       //
-      updateCurve = function () {};
     });
   }
   //
@@ -1695,13 +1750,15 @@ function LineLinearSpark() {
     if (!arguments.length) return data;
     data = val;
     if (typeof updateData === "function") updateData();
+    else redraw_.schedule();
     return chart;
   };
   //
   chart.Curve = function (val) {
     if(!arguments.length) return curve;
     curve = val;
-    if (typeof updateCurve === 'function') updateCurve();
+    if (typeof updateCurve === "function") updateCurve();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1720,14 +1777,16 @@ function LineLinearSpark() {
   chart.WithRightScale = function (val) {
     if(!arguments) return withRightScale;
     withRightScale = val;
-    if(typeof updateRightScale === 'function') updateRightScale();
+    if (typeof updateRightScale === "function") updateRightScale();
+    else redraw_.schedule();
     return chart;
   }
   //
   chart.WithSubmit = function(val) {
     if(!arguments.length) return submit;
     submit = val;
-    if(typeof updateSubmit === 'function') updateSubmit();
+    if (typeof updateSubmit === "function") updateSubmit();
+    else redraw_.schedule();
     return chart;
   }
   //
@@ -1741,6 +1800,7 @@ function LineLinearSpark() {
     if (!arguments.length) return chartColour;
     chartColour = val;
     if (typeof updateChartColour === "function") updateChartColour();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1748,6 +1808,7 @@ function LineLinearSpark() {
     if (!arguments.length) return linear_domain;
     linear_domain = val;
     if (typeof updateDomainLinear === "function") updateDomainLinear();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1755,6 +1816,7 @@ function LineLinearSpark() {
     if (!arguments.length) return linear_accessor;
     linear_accessor = val;
     if (typeof updateLinearAccessor === "function") updateLinearAccessor();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1762,6 +1824,7 @@ function LineLinearSpark() {
     if (!arguments.length) return val_domain;
     val_domain = val;
     if (typeof updateDomainVal === "function") updateDomainVal();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1769,6 +1832,7 @@ function LineLinearSpark() {
     if (!arguments.length) return val_accessor;
     val_accessor = val;
     if (typeof updateValAccessor === "function") updateValAccessor();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1776,6 +1840,7 @@ function LineLinearSpark() {
     if (!arguments.length) return chartColour;
     chartColour = val;
     if (typeof updateColourFnZ === "function") updateColourFnZ();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1784,6 +1849,7 @@ function LineLinearSpark() {
     width = val;
     dims.width = val;
     if (typeof updateWidth === "function") updateWidth();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1800,6 +1866,7 @@ function LineLinearSpark() {
     marginTop = val;
     dims.marginTop = val;
     if (typeof updateMarginTop === "function") updateMarginTop();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1808,6 +1875,7 @@ function LineLinearSpark() {
     marginRight = val;
     dims.marginRight = val;
     if (typeof updateMarginRight === "function") updateMarginRight();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1816,6 +1884,7 @@ function LineLinearSpark() {
     marginTop = val;
     dims.marginBottom = val;
     if (typeof updateMarginBottom === "function") updateMarginBottom();
+    else redraw_.schedule();
     return chart;
   };
   chart.MarginLeft = function (val) {
@@ -1823,6 +1892,7 @@ function LineLinearSpark() {
     marginTop = val;
     dims.marginLeft = val;
     if (typeof updateMarginLeft === "function") updateMarginLeft();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1831,6 +1901,8 @@ function LineLinearSpark() {
 //
 //
 function LineTimeChartSimple() {
+  // Declared here so each chart instance keeps its own state (no implicit globals).
+  var updateTimeDomain;
   var data = [],
     svg_id = "",
     time,
@@ -1871,7 +1943,9 @@ function LineTimeChartSimple() {
     updateDomainTime,
     updateDomainLinear;
   //
+  var redraw_ = makeRedraw(chart);
   function chart(selection) {
+    redraw_.mount(selection);
     selection.each(function () {
       //
       var boundedWidth = dims.w - dims.marginRight - dims.marginLeft,
@@ -1889,7 +1963,10 @@ function LineTimeChartSimple() {
         .domain(linear_domain)
         .range([boundedHeight, 0]);
       //
-      var svg = getBaseSVG(this, svg_id, dims, responsivefy);
+      var root = getBaseSVG(this, svg_id, dims, responsivefy);
+      var svg = root
+        .append("g")
+        .attr("transform", `translate(${dims.marginLeft},${dims.marginTop})`);
       //
       svg.append("g").call(d3.axisLeft(val_linear).ticks(5));
       //
@@ -1951,10 +2028,17 @@ function LineTimeChartSimple() {
   }
   //
   //
+  chart.SvgID = function (val) {
+    if (!arguments.length) return svg_id;
+    svg_id = val;
+    return chart;
+  };
+  //
   chart.Data = function (val) {
     if (!arguments.length) return data;
     data = val;
     if (typeof updateData === "function") updateData();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1963,6 +2047,7 @@ function LineTimeChartSimple() {
     height = val;
     dims.h = val;
     if (typeof updateHeight === "function") updateHeight();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1971,6 +2056,7 @@ function LineTimeChartSimple() {
     width = val;
     dims.w = val;
     if (typeof updateWidth === "function") updateWidth();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1979,6 +2065,7 @@ function LineTimeChartSimple() {
     marginLeft = val;
     dims.marginLeft = marginLeft;
     if (typeof updateMarginLeft === "function") updateMarginLeft();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1987,6 +2074,7 @@ function LineTimeChartSimple() {
     marginRight = val;
     dims.marginRight = marginRight;
     if (typeof updateMarginRight === "function") updateMarginRight();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -1995,6 +2083,7 @@ function LineTimeChartSimple() {
     marginTop = val;
     dims.marginTop = marginTop;
     if (typeof updateMarginTop === "function") updateMarginTop();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2003,6 +2092,7 @@ function LineTimeChartSimple() {
     marginBottom = val;
     dims.marginBottom = marginBottom;
     if (typeof updateMarginBottom === "function") updateMarginBottom();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2010,6 +2100,7 @@ function LineTimeChartSimple() {
     if (!arguments.length) return strokeColour;
     strokeColour = val;
     if (typeof updateStrokeColour === "function") updateStrokeColour();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2017,6 +2108,7 @@ function LineTimeChartSimple() {
     if (!arguments.length) return strokeWidth;
     strokeWidth = val;
     if (typeof updateStrokeWidth === "function") updateStrokeWidth();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2024,6 +2116,7 @@ function LineTimeChartSimple() {
     if (!arguments.length) return time;
     time = val;
     if (typeof updateTime === "function") updateTime();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2031,6 +2124,7 @@ function LineTimeChartSimple() {
     if (!arguments.length) return linear;
     linear = _;
     if (typeof updateLinear === "function") updateLinear();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2038,6 +2132,7 @@ function LineTimeChartSimple() {
     if (!arguments.length) return linear_domain;
     linear_domain = val;
     if (typeof updateDomainLinear === "function") updateDomainLinear();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2045,6 +2140,7 @@ function LineTimeChartSimple() {
     if (!arguments.length) return time_domain;
     time_domain = val;
     if (typeof updateTimeDomain === "function") updateTimeDomain();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2053,6 +2149,8 @@ function LineTimeChartSimple() {
 //
 //
 function MultiLineTimeChartSimple() {
+  // Declared here so each chart instance keeps its own state (no implicit globals).
+  var updateHeight, updateWidth, updateMarginLeft, updateMarginRight, updateMarginTop, updateMarginBottom, updateDomainVal, updateDomainTime;
   //
   var data = [],
     svg_id = "",
@@ -2095,7 +2193,9 @@ function MultiLineTimeChartSimple() {
     updateColour,
     updateDateOptions;
   //
+  var redraw_ = makeRedraw(chart);
   function chart(selection) {
+    redraw_.mount(selection);
     selection.each(function () {
       //
       var boundedWidth = dims.w - dims.marginRight - dims.marginLeft,
@@ -2192,7 +2292,7 @@ function MultiLineTimeChartSimple() {
       //
       var legendItems = Object.keys(withLegend);
       if (legendItems.length) {
-        var map = d3.map(legendItems, function (key) {
+        var legendData = d3.map(legendItems, function (key) {
           return { key: key, value: withLegend[key] };
         });
         //
@@ -2202,7 +2302,7 @@ function MultiLineTimeChartSimple() {
         var circle_rad = 6;
         svg
           .append("g")
-          .datum(map)
+          .datum(legendData)
           .selectAll("circle")
           .data((d) => d)
           .join("circle")
@@ -2212,7 +2312,7 @@ function MultiLineTimeChartSimple() {
           .style("fill", (d) => chartColour(d.key));
         svg
           .append("g")
-          .datum(map)
+          .datum(legendData)
           .selectAll("circle")
           .data((d) => d)
           .join("text")
@@ -2239,7 +2339,7 @@ function MultiLineTimeChartSimple() {
         var circles = svg
           .append("g")
           .attr("class", "tooltip_circles")
-          .datum(map)
+          .datum(legendData)
           .selectAll("circle")
           .data((d) => d)
           .join("circle")
@@ -2306,10 +2406,17 @@ function MultiLineTimeChartSimple() {
     });
   }
   //
+  chart.SvgID = function (val) {
+    if (!arguments.length) return svg_id;
+    svg_id = val;
+    return chart;
+  };
+  //
   chart.Data = function (val) {
     if (!arguments.length) return data;
     data = val;
     if (typeof updateData === "function") updateData();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2317,6 +2424,7 @@ function MultiLineTimeChartSimple() {
     if (!arguments.length) return time;
     time = val;
     if (typeof updateTime === "function") updateTime();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2324,6 +2432,7 @@ function MultiLineTimeChartSimple() {
     if (!arguments.length) return date_options;
     date_options = val;
     if (typeof updateDateOptions === "function") updateDateOptions();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2331,6 +2440,7 @@ function MultiLineTimeChartSimple() {
     if (!arguments.length) return colour;
     colour = val;
     if (typeof updateColour === "function") updateColour();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2338,6 +2448,7 @@ function MultiLineTimeChartSimple() {
     if (!arguments.length) return colourDomain;
     colourDomain = val;
     if (typeof updateColourDomain === "function") updateColourDomain();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2345,6 +2456,7 @@ function MultiLineTimeChartSimple() {
     if (!arguments.length) return colourRange;
     colourRange = val;
     if (typeof updateColourRange === "function") updateColourRange();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2353,6 +2465,7 @@ function MultiLineTimeChartSimple() {
     height = val;
     dims.h = val;
     if (typeof updateHeight === "function") updateHeight();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2361,6 +2474,7 @@ function MultiLineTimeChartSimple() {
     width = val;
     dims.w = val;
     if (typeof updateWidth === "function") updateWidth();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2369,6 +2483,7 @@ function MultiLineTimeChartSimple() {
     marginLeft = val;
     dims.marginLeft = marginLeft;
     if (typeof updateMarginLeft === "function") updateMarginLeft();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2377,6 +2492,7 @@ function MultiLineTimeChartSimple() {
     marginRight = val;
     dims.marginRight = marginRight;
     if (typeof updateMarginRight === "function") updateMarginRight();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2385,6 +2501,7 @@ function MultiLineTimeChartSimple() {
     marginTop = val;
     dims.marginTop = marginTop;
     if (typeof updateMarginTop === "function") updateMarginTop();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2393,6 +2510,7 @@ function MultiLineTimeChartSimple() {
     marginBottom = val;
     dims.marginBottom = marginBottom;
     if (typeof updateMarginBottom === "function") updateMarginBottom();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2400,6 +2518,7 @@ function MultiLineTimeChartSimple() {
     if (!arguments.length) return lineKeys;
     lineKeys = val;
     if (typeof updateLineKeys === "function") updateLineKeys();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2407,6 +2526,7 @@ function MultiLineTimeChartSimple() {
     if (!arguments.length) return withLegend;
     withLegend = val;
     if (typeof updateLegend === "function") updateLegend();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2414,6 +2534,7 @@ function MultiLineTimeChartSimple() {
     if (!arguments.length) return val_domain;
     val_domain = val;
     if (typeof updateDomainVal === "function") updateDomainVal();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2421,6 +2542,7 @@ function MultiLineTimeChartSimple() {
     if (!arguments.length) return time_domain;
     time_domain = val;
     if (typeof updateDomainTime === "function") updateDomainTime();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2475,7 +2597,9 @@ function SingleHorzBarChart() {
     updateWithText;
   //
   //
+  var redraw_ = makeRedraw(chart);
   function chart(selection) {
+    redraw_.mount(selection);
     //
     selection.each(function () {
       var boundedWidth = dims.w - dims.marginRight - dims.marginLeft,
@@ -2626,7 +2750,6 @@ function SingleHorzBarChart() {
         }
       };
       //
-      updateColourDomain = function () {};
       //
       updateDomainVal = function () {
         xScale.domain(val_domain);
@@ -2634,10 +2757,17 @@ function SingleHorzBarChart() {
     });
   }
   //
+  chart.SvgID = function (val) {
+    if (!arguments.length) return svg_id;
+    svg_id = val;
+    return chart;
+  };
+  //
   chart.Data = function (val) {
     if (!arguments.length) return data;
     data = val;
     if (typeof updateData === "function") updateData();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2645,6 +2775,7 @@ function SingleHorzBarChart() {
     if (!arguments.length) return colour;
     colour = val;
     if (typeof updateColour === "function") updateColour();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2652,6 +2783,7 @@ function SingleHorzBarChart() {
     if (!arguments.length) return colourDomain;
     colourDomain = val;
     if (typeof updateColourDomain === "function") updateColourDomain();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2659,6 +2791,7 @@ function SingleHorzBarChart() {
     if (!arguments.length) return colourRange;
     colourRange = val;
     if (typeof updateColourRange === "function") updateColourRange();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2667,6 +2800,7 @@ function SingleHorzBarChart() {
     height = val;
     dims.h = val;
     if (typeof updateHeight === "function") updateHeight();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2675,6 +2809,7 @@ function SingleHorzBarChart() {
     width = val;
     dims.w = val;
     if (typeof updateWidth === "function") updateWidth();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2683,6 +2818,7 @@ function SingleHorzBarChart() {
     marginLeft = val;
     dims.marginLeft = marginLeft;
     if (typeof updateMarginLeft === "function") updateMarginLeft();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2691,6 +2827,7 @@ function SingleHorzBarChart() {
     marginRight = val;
     dims.marginRight = marginRight;
     if (typeof updateMarginRight === "function") updateMarginRight();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2699,6 +2836,7 @@ function SingleHorzBarChart() {
     marginTop = val;
     dims.marginTop = marginTop;
     if (typeof updateMarginTop === "function") updateMarginTop();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2707,6 +2845,7 @@ function SingleHorzBarChart() {
     marginBottom = val;
     dims.marginBottom = marginBottom;
     if (typeof updateMarginBottom === "function") updateMarginBottom();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2714,6 +2853,7 @@ function SingleHorzBarChart() {
     if (!arguments.length) return val_domain;
     val_domain = val;
     if (typeof updateDomainVal === "function") updateDomainVal();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2721,6 +2861,7 @@ function SingleHorzBarChart() {
     if (!arguments.length) return withHover;
     withHover = val;
     if (typeof updateHover === "function") updateHover();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2728,6 +2869,7 @@ function SingleHorzBarChart() {
     if (!arguments.length) return hoverEvent;
     hoverEvent = val;
     if (typeof updateHoverEvent === "function") updateHoverEvent();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2735,6 +2877,7 @@ function SingleHorzBarChart() {
     if (!arguments.length) return withText;
     withText = val;
     if (typeof updateWithText === "function") updateWithText();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2743,6 +2886,8 @@ function SingleHorzBarChart() {
 //
 //
 function LineAndBarChartSimple() {
+  // Declared here so each chart instance keeps its own state (no implicit globals).
+  var updateStrokeColour, updateStrokeWidth, updateMarginTop;
   var data = [],
     svg,
     svg_id = "",
@@ -2782,7 +2927,9 @@ function LineAndBarChartSimple() {
     updateMarginBottom,
     updateThresholdBin;
   //
+  var redraw_ = makeRedraw(chart);
   function chart(selection) {
+    redraw_.mount(selection);
     //
     selection.each(function () {
       //
@@ -2934,16 +3081,24 @@ function LineAndBarChartSimple() {
     });
   }
   //
+  chart.SvgID = function (val) {
+    if (!arguments.length) return svg_id;
+    svg_id = val;
+    return chart;
+  };
+  //
   chart.Data = function (val) {
     if (!arguments.length) return data;
     data = val;
     if (typeof updateData === "function") updateData();
+    else redraw_.schedule();
     return chart;
   };
   chart.StrokeColour = function (val) {
     if (!arguments.length) return strokeColour;
     strokeColour = val;
     if (typeof updateStrokeColour === "function") updateStrokeColour();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2951,6 +3106,7 @@ function LineAndBarChartSimple() {
     if (!arguments.length) return strokeWidth;
     strokeWidth = val;
     if (typeof updateStrokeWidth === "function") updateStrokeWidth();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2958,6 +3114,7 @@ function LineAndBarChartSimple() {
     if (!arguments.length) return band_domain;
     band_domain = val;
     if (typeof updateBandDomain === "function") updateBandDomain();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2965,6 +3122,7 @@ function LineAndBarChartSimple() {
     if (!arguments.length) return val_domain;
     val_domain = val;
     if (typeof updateValDomain === "function") updateValDomain();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2973,6 +3131,7 @@ function LineAndBarChartSimple() {
     height = val;
     dims.h = val;
     if (typeof updateHeight === "function") updateHeight();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2981,6 +3140,7 @@ function LineAndBarChartSimple() {
     width = val;
     dims.w = val;
     if (typeof updateWidth === "function") updateWidth();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2989,6 +3149,7 @@ function LineAndBarChartSimple() {
     marginLeft = val;
     dims.marginLeft = marginLeft;
     if (typeof updateMarginLeft === "function") updateMarginLeft();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -2997,6 +3158,7 @@ function LineAndBarChartSimple() {
     marginRight = val;
     dims.marginRight = marginRight;
     if (typeof updateMarginRight === "function") updateMarginRight();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -3005,6 +3167,7 @@ function LineAndBarChartSimple() {
     marginTop = val;
     dims.marginTop = marginTop;
     if (typeof updateMarginTop === "function") updateMarginTop();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -3013,6 +3176,7 @@ function LineAndBarChartSimple() {
     marginBottom = val;
     dims.marginBottom = marginBottom;
     if (typeof updateMarginBottom === "function") updateMarginBottom();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -3020,6 +3184,7 @@ function LineAndBarChartSimple() {
     if (!arguments.length) return threshold_bin;
     threshold_bin = val;
     if (typeof updateThresholdBin === "function") updateThresholdBin();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -3030,14 +3195,18 @@ function LineAndBarChartSimple() {
 // TODO change all other functions to new format
 //
 function HeatMapBlockedSimple() {
+  // Declared here so each chart instance keeps its own state (no implicit globals).
+  var updateDateAccessor, updateSortFn, updateHover, updateOnHover, updateDataAccessor, updateDomainZ, updateColourFnZ, updateColourDomainZ, updateColourRangeZ, updateOrient, updateWithTime, updateDateExtent, updateHeight, updateWidth, updateMarginLeft, updateMarginRight, updateMarginTop, updateMarginBottom;
   //
   var data = [],
     svg,
     svg_id = "",
     orient = "horizontal",
-    data_accessor,
+    data_accessor = (d) => d,
     date_accessor = (d) => d,
     chartColour,
+    colour_domain_z = [],
+    colour_range_z = d3.schemeTableau10,
     domain_z,
     sortFn = (a, b) => {
       return 0;
@@ -3047,7 +3216,7 @@ function HeatMapBlockedSimple() {
     //
     extent = [],
     with_time = false,
-    date_extent = 0,
+    date_extent = 7,
     height_percentage = 0.2,
     width = 800,
     height = 600,
@@ -3070,11 +3239,10 @@ function HeatMapBlockedSimple() {
   function getData() {
     return data_accessor(data);
   }
-  function getSummary() {
-    return summary_accessor(data);
-  }
   //
+  var redraw_ = makeRedraw(chart);
   function chart(selection) {
+    redraw_.mount(selection);
     selection.each(function () {
       //
       var boundedWidth = dims.w - dims.marginRight - dims.marginLeft,
@@ -3090,6 +3258,10 @@ function HeatMapBlockedSimple() {
       var svg = getBaseSVG(this, svg_id, dims, responsivefy);
       //
       var thisData = getData();
+      // Colour cells with ColourFnZ when set, else an ordinal scale built from ColourDomainZ/RangeZ.
+      var cellColour =
+        chartColour ||
+        d3.scaleOrdinal().domain(colour_domain_z).range(colour_range_z);
       var data_length = thisData.length;
       //
       var updateDuration = 800,
@@ -3134,7 +3306,7 @@ function HeatMapBlockedSimple() {
           return ret;
         })
         .style("fill", function (d) {
-          return chartColour(d.status);
+          return cellColour(d.status);
         })
         .style("stroke", "#111")
         .attr(
@@ -3161,16 +3333,16 @@ function HeatMapBlockedSimple() {
       //
       function makeHoverLook(date) {
         //
-        var sq = document.querySelectorAll(".square");
+        var sq = svg.node().querySelectorAll(".square");
         sq.forEach((d) => (d.style.opacity = 0.2));
         // TODO bad class names and mangling.
-        var cl = document.querySelectorAll(
+        var cl = svg.node().querySelectorAll(
           ".a" + date.toLocaleString().replaceAll("/", "-"),
         );
         cl.forEach((d) => (d.style.opacity = 1));
       }
       function clearHoverLook() {
-        var sq = document.querySelectorAll(".square");
+        var sq = svg.node().querySelectorAll(".square");
         sq.forEach((d) => (d.style.opacity = 1));
       }
       //
@@ -3235,7 +3407,6 @@ function HeatMapBlockedSimple() {
       }
       //
       //
-      updateData = function () {};
     });
   }
   //
@@ -3250,6 +3421,7 @@ function HeatMapBlockedSimple() {
     if (!arguments.length) return data;
     data = val;
     if (typeof updateData === "function") updateData();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -3257,6 +3429,7 @@ function HeatMapBlockedSimple() {
     if (!arguments.length) return date_accessor;
     date_accessor = val;
     if (typeof updateDateAccessor === "function") updateDateAccessor();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -3264,6 +3437,7 @@ function HeatMapBlockedSimple() {
     if (!arguments.length) return sortFn;
     sortFn = val;
     if (typeof updateSortFn === "function") updateSortFn();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -3271,6 +3445,7 @@ function HeatMapBlockedSimple() {
     if (!arguments.length) return hover;
     hover = val;
     if (typeof updateHover === "function") updateHover();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -3278,6 +3453,7 @@ function HeatMapBlockedSimple() {
     if (!arguments.length) return on_hover;
     on_hover = val;
     if (typeof updateOnHover === "function") updateOnHover();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -3285,6 +3461,7 @@ function HeatMapBlockedSimple() {
     if (!arguments.length) return data_accessor;
     data_accessor = val;
     if (typeof updateDataAccessor === "function") updateDataAccessor();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -3292,6 +3469,7 @@ function HeatMapBlockedSimple() {
     if (!arguments.length) return domain_z;
     domain_z = val;
     if (typeof updateDomainZ === "function") updateDomainZ();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -3299,6 +3477,7 @@ function HeatMapBlockedSimple() {
     if (!arguments.length) return chartColour;
     chartColour = val;
     if (typeof updateColourFnZ === "function") updateColourFnZ();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -3306,6 +3485,7 @@ function HeatMapBlockedSimple() {
     if (!arguments.length) return colour_domain_z;
     colour_domain_z = val;
     if (typeof updateColourDomainZ === "function") updateColourDomainZ();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -3313,6 +3493,7 @@ function HeatMapBlockedSimple() {
     if (!arguments.length) return colour_range_z;
     colour_range_z = val;
     if (typeof updateColourRangeZ === "function") updateColourRangeZ();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -3320,6 +3501,7 @@ function HeatMapBlockedSimple() {
     if (!arguments.length) return orient;
     orient = val;
     if (typeof updateOrient === "function") updateOrient();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -3327,13 +3509,15 @@ function HeatMapBlockedSimple() {
     if (!arguments.length) return with_time;
     with_time = val;
     if (typeof updateWithTime === "function") updateWithTime();
+    else redraw_.schedule();
     return chart;
   };
   //
   chart.DateExtent = function (val) {
     if (!arguments.length) return date_extent;
     date_extent = val;
-    if (typeof updateDateExtent === "function") updateDateExtend();
+    if (typeof updateDateExtent === "function") updateDateExtent();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -3342,6 +3526,7 @@ function HeatMapBlockedSimple() {
     width = val;
     dims.w = width;
     if (typeof updateWidth === "function") updateWidth();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -3349,7 +3534,8 @@ function HeatMapBlockedSimple() {
     if (!arguments.length) return height;
     height = val;
     dims.h = height;
-    if (typeof updateHeight === "function") updateWidth();
+    if (typeof updateHeight === "function") updateHeight();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -3358,6 +3544,7 @@ function HeatMapBlockedSimple() {
     marginLeft = val;
     dims.marginLeft = marginLeft;
     if (typeof updateMarginLeft === "function") updateMarginLeft();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -3366,6 +3553,7 @@ function HeatMapBlockedSimple() {
     marginRight = val;
     dims.marginRight = marginRight;
     if (typeof updateMarginRight === "function") updateMarginRight();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -3374,6 +3562,7 @@ function HeatMapBlockedSimple() {
     marginTop = val;
     dims.marginTop = marginTop;
     if (typeof updateMarginTop === "function") updateMarginTop();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -3382,6 +3571,7 @@ function HeatMapBlockedSimple() {
     marginBottom = val;
     dims.marginBottom = marginBottom;
     if (typeof updateMarginBottom === "function") updateMarginBottom();
+    else redraw_.schedule();
     return chart;
   };
   //
@@ -3391,9 +3581,9 @@ function HeatMapBlockedSimple() {
 //
 //
 function CircularHeatChartSimple() {
-  var data,
+  var data = [],
     dataAccessor = (d) => d,
-    svgId,
+    svg_id = "",
     innerRadius = 50,
     numSegments = 24,
     segmentHeight = 20,
@@ -3413,75 +3603,83 @@ function CircularHeatChartSimple() {
       marginBottom: 0,
     };
   //
+  // Each datum is one arc. Ring = floor(i / numSegments), segment = i % numSegments.
+  var redraw_ = makeRedraw(chart);
   function chart(selection) {
-    //
+    redraw_.mount(selection);
     selection.each(function () {
+      var rings = Math.max(1, Math.ceil(data.length / numSegments)),
+        outer = innerRadius + rings * segmentHeight;
+      dims.offset = outer;
       //
-      var boundedWidth = dims.width - dims.marginLeft - dims.marginRight,
-        boundedHeight = dims.height - dims.marginTop - marginBottom;
-      dims.offset =
-        innerRadius + Math.ceil(data.length / numSegments) * segmentHeight;
+      var extent = valDomain.length ? valDomain : d3.extent(data, dataAccessor),
+        colour = d3.scaleLinear().domain(extent).range(colourRange),
+        arc = d3
+          .arc()
+          .innerRadius((d, i) => innerRadius + Math.floor(i / numSegments) * segmentHeight)
+          .outerRadius((d, i) => innerRadius + (Math.floor(i / numSegments) + 1) * segmentHeight)
+          .startAngle((d, i) => (i % numSegments) * ((2 * Math.PI) / numSegments))
+          .endAngle((d, i) => ((i % numSegments) + 1) * ((2 * Math.PI) / numSegments));
       //
+      var svg = getBaseSVG(this, svg_id, dims, responsivefy),
+        g = svg
+          .append("g")
+          .attr(
+            "transform",
+            `translate(${dims.marginLeft + outer},${dims.marginTop + outer})`,
+          );
       //
-      var svg = getBaseSVG(this, svg_id, dims, responsivefy);
-      svg
-        .append("g")
-        .attr("width", svg.attr("width"))
-        .attr(
-          "transform",
-          `translate(${dims.marginLeft + dims.offset},${dims.marginTop + dims.offset})`,
-        );
+      g.selectAll("path")
+        .data(data)
+        .join("path")
+        .attr("class", "segment")
+        .attr("d", (d, i) => arc(d, i))
+        .attr("fill", (d) => colour(dataAccessor(d)));
       //
-      //
+      // Segment labels sit on the outer edge, radial labels on the first segment boundary.
+      g.selectAll("text.segment-label")
+        .data(segmentLabels)
+        .join("text")
+        .attr("class", "segment-label")
+        .attr("text-anchor", "middle")
+        .attr("dy", "0.35em")
+        .attr("transform", (d, i) => {
+          var angle = ((i + 0.5) * 2 * Math.PI) / numSegments,
+            r = outer + 10;
+          return `translate(${Math.sin(angle) * r},${-Math.cos(angle) * r})`;
+        })
+        .text((d) => d);
+      g.selectAll("text.radial-label")
+        .data(radialLabels)
+        .join("text")
+        .attr("class", "radial-label")
+        .attr("text-anchor", "end")
+        .attr("dy", "0.35em")
+        .attr("x", -4)
+        .attr("y", (d, i) => -(innerRadius + (i + 0.5) * segmentHeight))
+        .text((d) => d);
     });
-    //
-    //
-    chart.Data = function (val) {
-      if (!arguments.length) return data;
-      data = val;
-      if (typeof updateData === "function") updateData();
+  }
+  //
+  const accessor = (get, set) =>
+    function (v) {
+      if (!arguments.length) return get();
+      set(v);
+      redraw_.schedule();
       return chart;
     };
-    //
-    chart.SvgID = function (val) {
-      if (!arguments.length) return svg_id;
-      svg_id = val;
-      return chart;
-    };
-  }
-  return chart;
-}
-//
-//
-function ScaledNumberBox() {
-  //
-  var data = [],
-      svg_id = "",
-      height = 150,
-      width = 200;
-  //
-  function chart(selection) {
-    selection.each(function(){
-
-    });
-
-  }
-  return chart;
-}
-//
-//
-function RealTimeMulti() {
-  var data = [],
-      svg_id = "",
-      width = 600,
-      height = 400;
-  //
-  //
-  function chart(selection) {
-    selection.each(function(){
-
-    });
-  }
+  chart.Data = accessor(() => data, (v) => (data = v));
+  chart.DataAccessor = accessor(() => dataAccessor, (v) => (dataAccessor = v));
+  chart.SvgID = accessor(() => svg_id, (v) => (svg_id = v));
+  chart.InnerRadius = accessor(() => innerRadius, (v) => (innerRadius = v));
+  chart.NumSegments = accessor(() => numSegments, (v) => (numSegments = v));
+  chart.SegmentHeight = accessor(() => segmentHeight, (v) => (segmentHeight = v));
+  chart.DomainVal = accessor(() => valDomain, (v) => (valDomain = v));
+  chart.ColourRange = accessor(() => colourRange, (v) => (colourRange = v));
+  chart.RadialLabels = accessor(() => radialLabels, (v) => (radialLabels = v));
+  chart.SegmentLabels = accessor(() => segmentLabels, (v) => (segmentLabels = v));
+  chart.Width = accessor(() => width, (v) => (width = dims.width = v));
+  chart.Height = accessor(() => height, (v) => (height = dims.height = v));
   return chart;
 }
 //
