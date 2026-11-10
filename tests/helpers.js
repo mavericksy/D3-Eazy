@@ -24,6 +24,19 @@ Object.defineProperty(dom.window.SVGElement.prototype, "transform", {
   get: () => ({ baseVal: { consolidate: () => null } }),
 });
 
+// jsdom has no canvas. This stand-in records every call (arc, fill, ...) so tests can see what was drawn.
+dom.window.HTMLCanvasElement.prototype.getContext = function () {
+  if (!this.__recorder) {
+    const calls = [];
+    this.__recorder = new Proxy({ calls }, {
+      get: (target, name) => (name in target ? target[name] : (...args) => { target.calls.push(String(name)); void args; }),
+      set: (target, name, value) => { target[name] = value; return true; },
+    });
+  }
+  return this.__recorder;
+};
+dom.window.HTMLCanvasElement.prototype.toDataURL = () => "data:image/png;base64,AAAA";
+
 /** Create a fresh container div, attach it to the page, and return it. */
 export function makeContainer(id) {
   const el = document.createElement("div");

@@ -328,12 +328,38 @@ Reference lines, annotations, the grid and the crosshair follow the new scales.
 | `ZoomDomain([lo, hi])` | `null` | The visible x range. Set it to start zoomed. It holds the zoomed range after a gesture, and a redraw keeps it. `null` shows everything. |
 | `OnZoom((domain) => ...)` | unset | Runs after each gesture with the new `[lo, hi]`, or `null` after a reset. |
 
+### Scatter: zoom and canvas
+
+```javascript
+ScatterPlotSimple().Zoom(true).Renderer("auto").CanvasOver(20000).Data(manyPoints);
+```
+
+`Zoom(true)` zooms both axes with the wheel, pans with a drag, and resets on double-click.
+`ZoomAxis("x")` or `ZoomAxis("y")` zooms one axis only.
+`ZoomDomain` is `{ x: [lo, hi], y: [lo, hi] }` or `null`, and `OnZoom` receives the same shape.
+The dots move in place, so a zoom step does not rebuild the chart.
+
+`Renderer` is `"svg"`, `"canvas"` or `"auto"` (the default). With `"auto"`, the chart draws on a canvas
+when there are more than `CanvasOver` rows (20,000 by default). A canvas draws pixels, not elements, so:
+
+- The chart finds the point under the pointer with a quadtree of screen positions. The tooltip, `OnHover`
+  and `OnClick` still receive the row. `OnClick` and `OnHover` get the `<canvas>` element as the node.
+- Zoom, pan, the trendline, reference lines, annotations and the theme work the same way.
+- Hovering a legend item fades the other groups and clicking an item hides its group.
+- `Focusable`, `HoverHighlight`, `MarkStroke`, `MarkOpacity` and other options that act on `.mark` elements do not apply,
+  because the dots are not elements. Use `Renderer("svg")` if you need them.
+- `toSvgString`, `downloadSvg` and `downloadPng` include the canvas as an embedded image.
+- If the browser cannot make a 2-D canvas, the chart draws SVG instead.
+
+On the same laptop as the table above, a zoom step on a 100,000-point canvas scatter took 7 to 24 ms.
+I did not time the first draw of that chart.
+
 ### Options for one chart
 
 | Chart | Setters |
 | --- | --- |
 | Line, area, step, time line, multi-line | `Curve`, `Points`, `PointSize`, `Dash` (string or one per series), `Trendline`, `DomainX`, `DomainY`, `Opacity`, `Crosshair`, `Decimate`, `LegendLabels`, `DateOptions`, and the zoom setters below. Area only: `Gradient`. Gaps in the data (`null` values) break the line. |
-| Scatter | `R` (number or accessor), `MaxRadius`, `Group`, `Opacity`, `Trendline`, `DomainX`, `DomainY` |
+| Scatter | `R` (number or accessor), `MaxRadius`, `Group`, `Opacity`, `Trendline`, `DomainX`, `DomainY`, `XScale`, `YScale`, `Renderer`, `CanvasOver`, `Zoom`, `ZoomAxis`, `ZoomMax`, `ZoomDomain`, `OnZoom` |
 | Pie | `InnerRadius`, `PadAngle`, `CornerRadius`, `StartAngle`, `EndAngle`, `Labels`, `ShowPercent`, `CentreText`, `ShowLegend` |
 | Funnel | `ShowPercent` |
 | Gauge | `Value`, `Min`, `Max`, `Thresholds`, `Label`, `Format` |

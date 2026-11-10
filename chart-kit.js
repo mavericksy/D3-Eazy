@@ -262,7 +262,9 @@ export function formatValue(o, value) {
     return value.toLocaleDateString(typeof o.Locale === "string" ? o.Locale : "en-US", { year: "numeric", month: "short", day: "numeric" });
   }
   const format = makeFormatter(o, o.ValueFormat);
-  return format && typeof value === "number" ? format(value) : value;
+  if (format && typeof value === "number") return format(value);
+  // Without a ValueFormat, keep integers as they are and trim long decimals to 6 significant digits.
+  return typeof value === "number" && Number.isFinite(value) && !Number.isInteger(value) ? +value.toPrecision(6) : value;
 }
 // Same, for the chart being drawn. Only call it while drawing.
 export const V = (value) => formatValue(ACTIVE.o, value);
@@ -389,6 +391,7 @@ export function legend(g, keys, colour, labelOf = (key) => key) {
   const lg = g.append("g").attr("class", "legend").attr("transform", `translate(${x},${y})`);
   if (o.LegendTitle) lg.append("text").attr("font-size", 10).attr("font-weight", 600).attr("y", 9).text(o.LegendTitle);
   const hidden = new Set();
+  const ctx = ACTIVE; // legend events run after the draw, so keep the context
   const marksOf = (key) => root.selectAll("[data-key]").filter(function () { return this.getAttribute("data-key") === String(key); });
   let cursor = 0;
   keys.forEach((key, i) => {
@@ -403,12 +406,17 @@ export function legend(g, keys, colour, labelOf = (key) => key) {
         root.selectAll("[data-key]").style("opacity", function () {
           return this.getAttribute("data-key") === String(key) ? null : 0.2;
         });
+        if (ctx.onLegendFocus) ctx.onLegendFocus(key);
       })
-      .on("mouseleave", () => root.selectAll("[data-key]").style("opacity", null))
+      .on("mouseleave", () => {
+        root.selectAll("[data-key]").style("opacity", null);
+        if (ctx.onLegendFocus) ctx.onLegendFocus(null);
+      })
       .on("click", () => {
         if (hidden.has(key)) hidden.delete(key); else hidden.add(key);
         marksOf(key).style("display", hidden.has(key) ? "none" : null);
         row.attr("opacity", hidden.has(key) ? 0.4 : 1);
+        if (ctx.onLegendChange) ctx.onLegendChange(hidden);
       });
   });
 }

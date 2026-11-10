@@ -309,6 +309,15 @@ export function toSvgString(element) {
   clone.setAttribute("width", width);
   clone.setAttribute("height", height);
   clone.style.maxWidth = "";
+  // A <canvas> inside a foreignObject is not serialised. Replace each with an <image> of its pixels.
+  const live = [...svg.querySelectorAll("foreignObject canvas")];
+  [...clone.querySelectorAll("foreignObject")].forEach((box, i) => {
+    if (!live[i]) return;
+    const image = clone.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "image");
+    for (const name of ["x", "y", "width", "height"]) if (box.hasAttribute(name)) image.setAttribute(name, box.getAttribute(name));
+    image.setAttribute("href", live[i].toDataURL("image/png"));
+    box.replaceWith(image);
+  });
   return new XMLSerializer().serializeToString(clone);
 }
 

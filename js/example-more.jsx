@@ -100,13 +100,24 @@ export const moreExamples = [
       return set(HistogramSimple(), s).SvgID("hist").Title("Distribution of 400 normal draws").Data(d3.range(400).map(normal));
     },
     actions: { "5 bins": (c) => c.Thresholds(5), "20 bins": (c) => c.Thresholds(20) } },
-  { title: "Scatter and bubble", blurb: "R as a number gives fixed dots. R as a function sizes each dot. Group colours them.",
+  { title: "Scatter and bubble", blurb: "R as a number gives fixed dots. R as a function sizes each dot. Group colours them. Scroll to zoom both axes, drag to pan, double-click to reset.",
     make(el, s) {
       return set(ScatterPlotSimple(), s).SvgID("scatter").Title("Height against weight by group")
-        .Group((d) => d.group).R((d) => d.size)
+        .Group((d) => d.group).R((d) => d.size).Zoom(true)
         .Data(d3.range(60).map((i) => ({ x: 20 + i, y: 30 + i * 0.8 + normal() * 6, size: 1 + random() * 10, group: ["a", "b", "c"][i % 3] })));
     },
-    actions: { "Fixed size": (c) => c.R(5) } },
+    actions: { "Fixed size": (c) => c.R(5), "Trendline": (c) => c.Trendline(!c.Trendline()) } },
+  { title: "Scatter, 100,000 points (canvas)", blurb: "Above CanvasOver points (20,000 by default) the chart draws on a canvas. Hover finds the nearest point. Zoom, pan and the legend work as usual.",
+    make(el, s) {
+      const groups = ["north", "south", "east"];
+      return set(ScatterPlotSimple(), s).SvgID("scatter-canvas").Title("100,000 points in three clusters")
+        .Group((d) => d.group).R(1.6).Opacity(0.35).Zoom(true).Trendline(true)
+        .Data(d3.range(100000).map((i) => {
+          const k = i % 3;
+          return { x: normal() * 12 + [20, 50, 75][k], y: normal() * 10 + [60, 30, 55][k] + normal() * 3, group: groups[k] };
+        }));
+    },
+    actions: { "Force SVG (slow)": (c) => c.Renderer("svg"), "Canvas": (c) => c.Renderer("canvas") } },
   { title: "Candlestick", blurb: "Open, high, low and close per day. Green is up, red is down.",
     make(el, s) {
       let price = 100;

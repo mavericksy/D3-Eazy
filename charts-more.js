@@ -8,7 +8,7 @@ import * as d3 from "d3";
 import { sankey, sankeyLinkHorizontal, sankeyJustify, sankeyLeft, sankeyRight, sankeyCenter } from "d3-sankey";
 import {
   makeChart, colours, palette, V, formatValue, keyed, tip, axisBottom, axisLeft, valueScale, xScaleFor, legend,
-  trendPoints, labelAt, labelText, place, bandValueScales, active, refreshOverlays, grow, emptyMessage, showTooltip, hideTooltip, makeFormatter,
+  trendPoints, labelAt, labelText, place, bandValueScales, active, refreshOverlays, grow, emptyMessage, isAnimated, showTooltip, hideTooltip, makeFormatter,
 } from "./chart-kit.js";
 import { resolveInterpolator } from "./features.js";
 
@@ -459,37 +459,146 @@ export const HistogramSimple = () => makeChart({ Value: (d) => d, Thresholds: 10
 // --- scatter ---------------------------------------------------------------------------
 
 function scatterRender(g, o, { width: w, height: h }) {
+  const ctx = active();
   const rows = o.Data;
-  const xs = valueScale(o.XScale)().domain(o.DomainX ?? d3.extent(rows, o.X)).nice().range([0, w]);
-  const y = valueScale(o.YScale)().domain(o.DomainY ?? d3.extent(rows, o.Y)).nice().range([h, 0]);
-  axisBottom(g, xs, h);
-  axisLeft(g, y);
+  const baseX = valueScale(o.XScale)().domain(o.DomainX ?? d3.extent(rows, o.X)).nice().range([0, w]);
+  const baseY = valueScale(o.YScale)().domain(o.DomainY ?? d3.extent(rows, o.Y)).nice().range([h, 0]);
+  if (o.ZoomDomain) { baseX.domain(o.ZoomDomain.x); baseY.domain(o.ZoomDomain.y); }
+  axisBottom(g, baseX, h);
+  axisLeft(g, baseY);
   const groups = o.Group ? [...new Set(rows.map(o.Group))] : [];
   const colour = colours(o, groups);
   const rOf =
     typeof o.R === "function"
       ? ((scale) => (d) => scale(o.R(d)))(d3.scaleSqrt().domain([0, d3.max(rows, o.R) || 1]).range([2, o.MaxRadius]))
       : () => o.R;
-  keyed(tip(
-    g.selectAll("circle").data(rows).join("circle").attr("class", "mark")
-      .attr("cx", (d) => xs(o.X(d))).attr("cy", (d) => y(o.Y(d))).attr("r", rOf)
-      .attr("fill", (d) => (o.Group ? colour(o.Group(d)) : palette()[0])).attr("fill-opacity", o.Opacity),
-    (d) => `${o.Group ? o.Group(d) + ": " : ""}(${V(o.X(d))}, ${V(o.Y(d))})`,
-  ), (d) => (o.Group ? o.Group(d) : ""));
-  if (o.Trendline) {
-    const t = trendPoints(rows.map((d) => [+o.X(d), +o.Y(d)]));
-    if (t) {
-      g.append("line").attr("class", "trendline").attr("stroke", "currentColor").attr("stroke-opacity", 0.6).attr("stroke-dasharray", "5 4")
-        .attr("x1", xs(t[0][0])).attr("y1", y(t[0][1])).attr("x2", xs(t[1][0])).attr("y2", y(t[1][1]));
-    }
+  const keyOf = (d) => (o.Group ? o.Group(d) : "");
+  const fillOf = (d) => (o.Group ? colour(o.Group(d)) : palette()[0]);
+  // Used in event handlers too, so it takes `o` instead of reading the active chart like V().
+  const tipText = (d) => `${o.Group ? o.Group(d) + ": " : ""}(${formatValue(o, o.X(d))}, ${formatValue(o, o.Y(d))})`;
+
+  // Canvas draws pixels, not elements, so it copes with far more points. It needs a 2-D context.
+  const wantCanvas = o.Renderer === "canvas" || (o.Renderer === "auto" && rows.length > o.CanvasOver);
+  const probe = wantCanvas ? document.createElement("canvas").getContext("2d") : null;
+  const useCanvas = !!probe;
+
+  const clipId = `${o.SvgID || "chart"}-clip`;
+  if (o.Zoom) ctx.root.append("defs").append("clipPath").attr("id", clipId).append("rect").attr("width", w).attr("height", h);
+  const layer = g.append("g").attr("class", "zoom-layer").attr("clip-path", o.Zoom ? `url(#${clipId})` : null);
+  const hitArea = () => layer.append("rect").attr("class", o.Zoom ? "zoom-area" : "scatter-area").attr("data-self-tooltip", "")
+    .attr("width", w).attr("height", h).attr("fill", "none").attr("pointer-events", "all");
+
+  let paint, current = { xs: baseX, ys: baseY };
+  let circles = null;
+  if (!useCanvas) {
+    if (o.Zoom) hitArea(); // under the dots, so the dots keep their own hover
+    circles = layer.append("g").attr("class", "plot").selectAll("circle").data(rows).join("circle").attr("class", "mark")
+      .attr("r", rOf).attr("fill", fillOf).attr("fill-opacity", o.Opacity);
+    keyed(tip(circles, tipText), keyOf);
+    paint = (xs, ys) => circles.attr("cx", (d) => xs(o.X(d))).attr("cy", (d) => ys(o.Y(d)));
+  } else {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const box = layer.append("foreignObject").attr("class", "canvas-layer").attr("width", w).attr("height", h).attr("pointer-events", "none");
+    const canvas = box.append("xhtml:canvas").attr("width", Math.max(1, Math.round(w * dpr))).attr("height", Math.max(1, Math.round(h * dpr)))
+      .style("width", "100%").style("height", "100%").style("display", "block");
+    const draw = canvas.node().getContext("2d");
+    const hidden = new Set();
+    let focus = null, visible = [], tree = null;
+    paint = (xs, ys) => {
+      draw.setTransform(dpr, 0, 0, dpr, 0, 0);
+      draw.clearRect(0, 0, w, h);
+      visible = [];
+      tree = null;
+      let lastFill = null, lastAlpha = null;
+      for (const d of rows) {
+        const key = keyOf(d);
+        if (hidden.has(key)) continue;
+        const px = xs(o.X(d)), py = ys(o.Y(d)), r = rOf(d);
+        if (!(px >= -r && px <= w + r && py >= -r && py <= h + r)) continue; // outside the view, or not a number
+        const alpha = focus !== null && !hidden.has(focus) && key !== focus ? o.Opacity * 0.15 : o.Opacity; // a hidden series cannot be focused
+        const fill = fillOf(d);
+        if (alpha !== lastAlpha) { draw.globalAlpha = alpha; lastAlpha = alpha; }
+        if (fill !== lastFill) { draw.fillStyle = fill; lastFill = fill; }
+        draw.beginPath();
+        draw.arc(px, py, r, 0, 2 * Math.PI);
+        draw.fill();
+        visible.push(d);
+      }
+    };
+    // The canvas has no elements to hover, so find the nearest drawn point with a quadtree of screen positions.
+    const nearest = (px, py) => {
+      if (!tree) tree = d3.quadtree(visible, (d) => current.xs(o.X(d)), (d) => current.ys(o.Y(d)));
+      return tree.find(px, py, 14);
+    };
+    const area = hitArea();
+    let over = null;
+    area.on("mousemove", (event) => {
+      const [px, py] = d3.pointer(event);
+      const d = nearest(px, py) ?? null;
+      if (d !== over) { over = d; if (typeof o.OnHover === "function") o.OnHover(event, d, canvas.node()); }
+      if (d && o.Tooltip !== "none") showTooltip(o, ctx.theme, tipText(d), event.clientX, event.clientY);
+      else hideTooltip();
+      area.style("cursor", d && o.OnClick ? "pointer" : o.Zoom ? "grab" : null);
+    })
+      .on("mouseleave", () => {
+        if (over && typeof o.OnHover === "function") o.OnHover(null, null, null);
+        over = null;
+        hideTooltip();
+      })
+      .on("click", (event) => {
+        if (typeof o.OnClick !== "function") return;
+        const [px, py] = d3.pointer(event);
+        const d = nearest(px, py);
+        if (d) o.OnClick(event, d, canvas.node());
+      });
+    ctx.onLegendChange = (set) => { hidden.clear(); set.forEach((k) => hidden.add(k)); paint(current.xs, current.ys); };
+    ctx.onLegendFocus = (key) => { focus = key; paint(current.xs, current.ys); };
+    if (isAnimated()) canvas.style("opacity", 0).transition("fade").duration(o.Duration).style("opacity", 1);
   }
+  paint(baseX, baseY);
+
+  // The regression line is one element in both modes. It is placed again after a zoom.
+  const trend = o.Trendline ? trendPoints(rows.map((d) => [+o.X(d), +o.Y(d)])) : null;
+  const trendLine = trend && layer.append("line").attr("class", "trendline").attr("stroke", "currentColor")
+    .attr("stroke-opacity", 0.6).attr("stroke-dasharray", "5 4").style("pointer-events", "none");
+  const placeTrend = (xs, ys) => trendLine && trendLine.attr("x1", xs(trend[0][0])).attr("y1", ys(trend[0][1])).attr("x2", xs(trend[1][0])).attr("y2", ys(trend[1][1]));
+  placeTrend(baseX, baseY);
+
   if (groups.length > 1) legend(g, groups, colour);
+
+  if (o.Zoom) {
+    const zoom = d3.zoom().scaleExtent([1, o.ZoomMax]).translateExtent([[0, 0], [w, h]]).extent([[0, 0], [w, h]])
+      .on("zoom", (event) => {
+        const xs = o.ZoomAxis === "y" ? baseX : event.transform.rescaleX(baseX);
+        const ys = o.ZoomAxis === "x" ? baseY : event.transform.rescaleY(baseY);
+        current = { xs, ys };
+        hideTooltip();
+        ctx.x = xs;
+        ctx.y = ys;
+        ctx.xAxis(xs);
+        ctx.yAxis(ys);
+        paint(xs, ys);
+        placeTrend(xs, ys);
+        refreshOverlays(ctx);
+      })
+      .on("end", (event) => {
+        if (!event.sourceEvent) return;
+        const domain = event.transform.k === 1 && event.transform.x === 0 && event.transform.y === 0 ? null : { x: current.xs.domain(), y: current.ys.domain() };
+        ctx.setSilent("ZoomDomain", domain);
+        if (typeof o.OnZoom === "function") o.OnZoom(domain);
+      });
+    layer.style("cursor", "grab").call(zoom).on("dblclick.zoom", null).on("dblclick", () => {
+      ctx.set("ZoomDomain", null);
+      if (typeof o.OnZoom === "function") o.OnZoom(null);
+    });
+  }
 }
 scatterRender.legendKeys = (o) => groupKeys(o.Data, o.Group);
 
 /** Scatter plot. Set `R` to a number for a fixed size, or an accessor to make it a bubble chart. `Group` colours the dots. */
 export const ScatterPlotSimple = () =>
-  makeChart({ X: (d) => d.x, Y: (d) => d.y, R: 4, MaxRadius: 24, Group: null, Opacity: 0.7, DomainX: null, DomainY: null, XScale: "linear", YScale: "linear", Trendline: false }, scatterRender);
+  makeChart({ X: (d) => d.x, Y: (d) => d.y, R: 4, MaxRadius: 24, Group: null, Opacity: 0.7, DomainX: null, DomainY: null, XScale: "linear", YScale: "linear", Trendline: false,
+    Renderer: "auto", CanvasOver: 20000, Zoom: false, ZoomDomain: null, ZoomMax: 40, ZoomAxis: "xy", OnZoom: null }, scatterRender);
 
 function candlestickRender(g, o, { width: w, height: h }) {
   const rows = o.Data.slice().sort((a, b) => o.Date(a) - o.Date(b));
