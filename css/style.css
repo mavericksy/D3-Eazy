@@ -1,48 +1,131 @@
-.container {
-  min-width: 100%;
+:root {
+  color-scheme: light;
+  --fg: #1c1e21;
+  --muted: #5b6168;
+  --line: #dde1e6;
+  --card: #fff;
+  --bg: #f5f6f8;
 }
-.flex {
-  display: flex;
+* {
+  box-sizing: border-box;
 }
-.flex-row {
-  flex-direction: row;
+body {
+  margin: 0;
+  font: 15px/1.5 system-ui, sans-serif;
+  color: var(--fg);
+  background: var(--bg);
 }
-.flex-col {
-  flex-direction: column;
+.page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1rem 1.25rem;
 }
-.h-svh {
-  height: 100svh;
+h1 {
+  margin: 0.5rem 0 0.25rem;
 }
-.grid {
+header p {
+  margin: 0;
+  color: var(--muted);
+}
+#examples {
   display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(520px, 1fr));
+  gap: 1rem;
 }
-.igrid {
-  display: inline-grid;
+.card {
+  align-self: start;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
 }
-.grid-cols-1 {
-  grid-template-columns: repeat(1, minmax(0, 1fr));
+.card h2 {
+  margin: 0;
+  font-size: 1.05rem;
 }
-.grid-cols-2 {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.card p {
+  margin: 0;
+  color: var(--muted);
 }
-.grid-cols-3 {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+.chart {
+  height: 280px;
+  width: 100%;
 }
-.grid-rows-3 {
-  grid-template-rows: repeat(3, minmax(0, 1fr));
+.chart.short {
+  height: 90px;
 }
-.w-full {
-  min-width: 100%;
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
-.w-1\/2 {
-  min-width: 50%;
+.controls button {
+  font: inherit;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
 }
-.h-1\/2 {
-  min-height: 50%;
+.controls button:hover {
+  background: var(--bg);
 }
-.h-full {
-  min-height: 100%;
+details summary {
+  cursor: pointer;
+  color: var(--muted);
 }
-.min-h-30 {
-  min-height: 30%;
+pre {
+  margin: 0.5rem 0 0;
+  padding: 0.75rem;
+  overflow: auto;
+  max-height: 320px;
+  font-size: 12.5px;
+  background: #f0f2f5;
+  border-radius: 6px;
+}
+
+.card.wide {
+  grid-column: 1 / -1;
+}
+.chart.tall {
+  height: 420px;
+}
+.knobs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+}
+.knob {
+  font-size: 13px;
+  white-space: nowrap;
+}
+.global {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  padding-bottom: 0;
+}
+.controls.small button {
+  font-size: 12px;
+  padding: 0.1rem 0.5rem;
+  color: var(--muted);
+}
+body.dark {
+  color-scheme: dark;
+  --fg: #e8eaed;
+  --muted: #a0a6ad;
+  --line: #30343a;
+  --card: #1b1e23;
+  --bg: #0f1114;
+}
+body.dark .controls button,
+body.dark select,
+body.dark pre {
+  background: #262a30;
+  color: var(--fg);
+  border-color: var(--line);
 }
